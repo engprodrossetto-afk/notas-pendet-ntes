@@ -95,25 +95,37 @@
   .presenca-card-row:last-of-type{border-bottom:none;}
   .presenca-card-row .pct{font-family:'JetBrains Mono',monospace;font-weight:700;}
   .obra-row{
-    padding:11px 0;
+    display:grid;
+    grid-template-columns:1fr 78px 78px;
+    gap:8px;align-items:center;
+    padding:9px 0;
     border-bottom:1px solid var(--line);
   }
   .obra-row:last-of-type{border-bottom:none;}
-  .obra-name{font-size:14px;font-weight:600;margin-bottom:8px;}
+  .obra-name{font-size:14px;font-weight:600;}
   .obra-name input{
     width:100%;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:13px;font-family:inherit;
   }
-  .faixas-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
-  .faixa-cell{display:flex;flex-direction:column;gap:3px;}
-  .faixa-cell label{font-size:9px;color:var(--muted);text-transform:uppercase;font-weight:700;text-align:center;letter-spacing:.02em;white-space:nowrap;}
-  .faixa-cell input{
-    width:100%;padding:7px 3px;border:1px solid var(--line);border-radius:6px;
-    font-family:'JetBrains Mono',monospace;font-size:12.5px;text-align:center;
+  .obra-row input[type=number]{
+    width:100%;padding:7px 6px;border:1px solid var(--line);border-radius:7px;
+    font-family:'JetBrains Mono',monospace;font-size:13px;text-align:center;
   }
-  .faixa-cell.faixa-critica input{border-color:var(--red);}
-  .faixa-cell.faixa-total .total-display{
-    display:block;text-align:center;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;
-    padding:7px 3px;background:var(--bg);border-radius:6px;color:var(--navy);border:1px solid var(--line);
+  .col-labels{
+    display:grid;grid-template-columns:1fr 78px 78px;gap:8px;
+    font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700;
+    padding-bottom:6px;border-bottom:1px solid var(--line);margin-bottom:2px;
+  }
+  .col-labels span:nth-child(2),.col-labels span:nth-child(3){text-align:center;}
+  .faixas-geral-box{
+    margin-top:10px;padding:12px;border:1.5px dashed var(--orange);border-radius:9px;background:#FFF8F4;
+  }
+  .faixas-geral-box > label{font-size:11.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:8px;}
+  .faixas-geral-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .faixa-geral-cell{display:flex;flex-direction:column;gap:4px;}
+  .faixa-geral-cell span{font-size:9.5px;color:var(--muted);text-transform:uppercase;font-weight:700;text-align:center;}
+  .faixa-geral-cell input{
+    width:100%;padding:9px 4px;border:1px solid var(--line);border-radius:7px;
+    font-family:'JetBrains Mono',monospace;font-size:14px;text-align:center;font-weight:700;color:var(--navy);
   }
   .empty-absent-hint{color:var(--muted);font-size:12px;padding:8px 0;text-align:center;}
   .btn-save{
@@ -196,8 +208,9 @@
   @media (min-width: 760px){
     .chamada-grid{grid-template-columns:repeat(3,1fr);}
     .chip{min-width:auto;}
-    .faixas-grid{gap:10px;max-width:520px;}
-    .faixa-cell input,.faixa-cell .total-display{font-size:14px;padding:9px 4px;}
+    .obra-row{grid-template-columns:minmax(200px,1fr) 110px 110px;}
+    .col-labels{grid-template-columns:minmax(200px,1fr) 110px 110px;}
+    .faixas-geral-grid{max-width:480px;}
   }
   @media (min-width: 1020px){
     .chamada-grid{grid-template-columns:repeat(4,1fr);}
@@ -325,11 +338,24 @@
       <button id="markAllAbsent">Marcar todos ausentes</button>
     </div>
 
+    <div class="col-labels">
+      <span>Obra</span><span>Total</span><span>&gt;30d</span>
+    </div>
     <div id="formRows"></div>
 
     <div class="total-geral-box">
       <label for="inpTotalGeral">Total geral da empresa (todas as obras, não calculado)</label>
       <input type="number" min="0" id="inpTotalGeral" placeholder="Ex.: 350">
+    </div>
+
+    <div class="faixas-geral-box">
+      <label>Faixas de idade — total geral da empresa (não por obra)</label>
+      <div class="faixas-geral-grid">
+        <div class="faixa-geral-cell"><span>0-2 dias</span><input type="number" min="0" id="inpFaixa02" placeholder="–"></div>
+        <div class="faixa-geral-cell"><span>3-7 dias</span><input type="number" min="0" id="inpFaixa37" placeholder="–"></div>
+        <div class="faixa-geral-cell"><span>8-30 dias</span><input type="number" min="0" id="inpFaixa830" placeholder="–"></div>
+        <div class="faixa-geral-cell"><span>Acima 30d</span><input type="number" min="0" id="inpFaixa30" placeholder="–"></div>
+      </div>
     </div>
 
     <button class="btn-save admin-only" id="saveDayBtn">Salvar dia</button>
@@ -478,7 +504,7 @@ async function loadObras(){
 
 async function loadAllLancamentos(){
   const { data, error } = await db.from('notas_lancamentos')
-    .select('data,obra_id,participou,total_pendente,acima_30_dias,faixa_0_2,faixa_3_7,faixa_8_30')
+    .select('data,obra_id,participou,total_pendente,acima_30_dias')
     .order('data', { ascending: true });
   if(error) throw error;
   entries = {};
@@ -487,20 +513,25 @@ async function loadAllLancamentos(){
     entries[rec.data][rec.obra_id] = {
       participou: rec.participou,
       total: rec.total_pendente,
-      acima30: rec.acima_30_dias,
-      f02: rec.faixa_0_2,
-      f37: rec.faixa_3_7,
-      f830: rec.faixa_8_30
+      acima30: rec.acima_30_dias
     };
   });
 }
 
 async function loadTotaisGerais(){
   const { data, error } = await db.from('notas_totais_diarios')
-    .select('data,total_geral');
+    .select('data,total_geral,faixa_0_2,faixa_3_7,faixa_8_30,acima_30_dias');
   if(error) throw error;
   totaisGerais = {};
-  (data || []).forEach(rec=>{ totaisGerais[rec.data] = rec.total_geral; });
+  (data || []).forEach(rec=>{
+    totaisGerais[rec.data] = {
+      total: rec.total_geral,
+      f02: rec.faixa_0_2,
+      f37: rec.faixa_3_7,
+      f830: rec.faixa_8_30,
+      acima30: rec.acima_30_dias
+    };
+  });
 }
 
 function loadParticipacaoForDate(date){
@@ -536,11 +567,18 @@ function renderChamada(){
 }
 
 function renderTotalGeralInput(){
-  const input = document.getElementById('inpTotalGeral');
-  const val = totaisGerais[currentDate];
-  input.value = (val === null || val === undefined) ? '' : val;
-  input.disabled = !isAdmin;
-  input.classList.toggle('viewer-readonly', !isAdmin);
+  const reg = totaisGerais[currentDate] || {};
+  const setField = (id, val)=>{
+    const input = document.getElementById(id);
+    input.value = (val === null || val === undefined) ? '' : val;
+    input.disabled = !isAdmin;
+    input.classList.toggle('viewer-readonly', !isAdmin);
+  };
+  setField('inpTotalGeral', reg.total);
+  setField('inpFaixa02', reg.f02);
+  setField('inpFaixa37', reg.f37);
+  setField('inpFaixa830', reg.f830);
+  setField('inpFaixa30', reg.acima30);
 }
 
 // ---------- Linhas de lançamento ----------
@@ -560,29 +598,10 @@ function renderFormRows(){
     row.dataset.id = o.id;
     row.innerHTML = `
       <div class="obra-name">${escapeHtml(o.nome)}${present ? '' : ' <span class="falta-tag">falta</span>'}</div>
-      <div class="faixas-grid">
-        <div class="faixa-cell"><label>0-2d</label><input type="number" min="0" class="inp-f02${roCls}" placeholder="–" value="${rec.f02 ?? ''}" ${roAttr}></div>
-        <div class="faixa-cell"><label>3-7d</label><input type="number" min="0" class="inp-f37${roCls}" placeholder="–" value="${rec.f37 ?? ''}" ${roAttr}></div>
-        <div class="faixa-cell"><label>8-30d</label><input type="number" min="0" class="inp-f830${roCls}" placeholder="–" value="${rec.f830 ?? ''}" ${roAttr}></div>
-        <div class="faixa-cell faixa-critica"><label>&gt;30d</label><input type="number" min="0" class="inp-30${roCls}" placeholder="–" value="${rec.acima30 ?? ''}" ${roAttr}></div>
-        <div class="faixa-cell faixa-total"><label>Total</label><span class="total-display">${rec.total ?? 0}</span></div>
-      </div>
+      <input type="number" min="0" class="inp-total${roCls}" placeholder="–" value="${rec.total ?? ''}" ${roAttr}>
+      <input type="number" min="0" class="inp-30${roCls}" placeholder="–" value="${rec.acima30 ?? ''}" ${roAttr}>
     `;
     wrap.appendChild(row);
-
-    const recalc = ()=>{
-      const v02 = row.querySelector('.inp-f02').value;
-      const v37 = row.querySelector('.inp-f37').value;
-      const v830 = row.querySelector('.inp-f830').value;
-      const v30 = row.querySelector('.inp-30').value;
-      const vals = [v02,v37,v830,v30];
-      const algumPreenchido = vals.some(v => v !== '');
-      const soma = vals.reduce((acc,v)=> acc + (v !== '' ? Number(v) : 0), 0);
-      row.querySelector('.total-display').textContent = algumPreenchido ? soma : 0;
-    };
-    row.querySelectorAll('input[type=number]').forEach(inp=>{
-      inp.addEventListener('input', recalc);
-    });
   });
 }
 
@@ -597,22 +616,14 @@ async function handleSaveDay(){
   const records = obras.map(o=>{
     const present = participacaoMap[o.id];
     const row = document.querySelector(`#formRows .obra-row[data-id="${o.id}"]`);
-    const v02 = row ? row.querySelector('.inp-f02').value : '';
-    const v37 = row ? row.querySelector('.inp-f37').value : '';
-    const v830 = row ? row.querySelector('.inp-f830').value : '';
-    const v30 = row ? row.querySelector('.inp-30').value : '';
-    const vals = [v02,v37,v830,v30];
-    const algumPreenchido = vals.some(v => v !== '');
-    const total = algumPreenchido ? vals.reduce((acc,v)=> acc + (v !== '' ? Number(v) : 0), 0) : null;
+    const tVal = row ? row.querySelector('.inp-total').value : '';
+    const aVal = row ? row.querySelector('.inp-30').value : '';
     return {
       obra_id: o.id,
       data: currentDate,
       participou: present,
-      faixa_0_2: v02 !== '' ? Number(v02) : null,
-      faixa_3_7: v37 !== '' ? Number(v37) : null,
-      faixa_8_30: v830 !== '' ? Number(v830) : null,
-      acima_30_dias: v30 !== '' ? Number(v30) : null,
-      total_pendente: total
+      total_pendente: tVal !== '' ? Number(tVal) : null,
+      acima_30_dias: aVal !== '' ? Number(aVal) : null
     };
   });
 
@@ -621,9 +632,20 @@ async function handleSaveDay(){
 
   let totalGeralError = null;
   const tgVal = document.getElementById('inpTotalGeral').value;
+  const f02Val = document.getElementById('inpFaixa02').value;
+  const f37Val = document.getElementById('inpFaixa37').value;
+  const f830Val = document.getElementById('inpFaixa830').value;
+  const f30Val = document.getElementById('inpFaixa30').value;
   const totalGeralNum = tgVal !== '' ? Number(tgVal) : null;
   const { error: tgErr } = await db.from('notas_totais_diarios')
-    .upsert({ data: currentDate, total_geral: totalGeralNum }, { onConflict: 'data' });
+    .upsert({
+      data: currentDate,
+      total_geral: totalGeralNum,
+      faixa_0_2: f02Val !== '' ? Number(f02Val) : null,
+      faixa_3_7: f37Val !== '' ? Number(f37Val) : null,
+      faixa_8_30: f830Val !== '' ? Number(f830Val) : null,
+      acima_30_dias: f30Val !== '' ? Number(f30Val) : null
+    }, { onConflict: 'data' });
   totalGeralError = tgErr;
 
   btn.disabled = false;
@@ -636,14 +658,19 @@ async function handleSaveDay(){
     return;
   }
 
-  totaisGerais[currentDate] = totalGeralNum;
+  totaisGerais[currentDate] = {
+    total: totalGeralNum,
+    f02: f02Val !== '' ? Number(f02Val) : null,
+    f37: f37Val !== '' ? Number(f37Val) : null,
+    f830: f830Val !== '' ? Number(f830Val) : null,
+    acima30: f30Val !== '' ? Number(f30Val) : null
+  };
 
   // atualiza cache local
   entries[currentDate] = {};
   records.forEach(r=>{
     entries[currentDate][r.obra_id] = {
-      participou: r.participou, total: r.total_pendente, acima30: r.acima_30_dias,
-      f02: r.faixa_0_2, f37: r.faixa_3_7, f830: r.faixa_8_30
+      participou: r.participou, total: r.total_pendente, acima30: r.acima_30_dias
     };
   });
 
@@ -671,7 +698,7 @@ function renderSummary(){
       if(rec.participou) presentes++;
     }
   });
-  const tgInformado = totaisGerais[currentDate];
+  const tgInformado = (totaisGerais[currentDate] || {}).total;
   const wrap = document.getElementById('summaryRow');
   wrap.innerHTML = `
     <div class="chip"><div class="v mono">${presentes}/${obras.length}</div><div class="l">Presentes hoje</div></div>
@@ -946,7 +973,7 @@ function renderChart(){
     }
     totalSeries.push(t);
     total30Series.push(t30);
-    totalGeralSeries.push(totaisGerais[date] ?? null);
+    totalGeralSeries.push((totaisGerais[date] || {}).total ?? null);
   });
 
   const labels = dates.map(d=> d.slice(8,10)+'/'+d.slice(5,7));
@@ -979,19 +1006,15 @@ function renderChart(){
 let faixasChartInstance = null;
 
 function renderFaixasChart(){
-  const dates = Object.keys(entries).sort();
+  const dates = Object.keys(totaisGerais).sort();
   const s02 = [], s37 = [], s830 = [], s30 = [];
 
   dates.forEach(date=>{
-    const dayObj = entries[date];
-    let t02=0, t37=0, t830=0, t30=0;
-    Object.values(dayObj).forEach(rec=>{
-      t02 += rec.f02 || 0;
-      t37 += rec.f37 || 0;
-      t830 += rec.f830 || 0;
-      t30 += rec.acima30 || 0;
-    });
-    s02.push(t02); s37.push(t37); s830.push(t830); s30.push(t30);
+    const reg = totaisGerais[date] || {};
+    s02.push(reg.f02 ?? 0);
+    s37.push(reg.f37 ?? 0);
+    s830.push(reg.f830 ?? 0);
+    s30.push(reg.acima30 ?? 0);
   });
 
   const labels = dates.map(d=> d.slice(8,10)+'/'+d.slice(5,7));
@@ -1054,7 +1077,7 @@ function renderHistoryTable(){
       }
     });
     const [y,m,d] = date.split('-');
-    const tg = totaisGerais[date];
+    const tg = (totaisGerais[date] || {}).total;
     body += `<tr><td class="date-cell" data-date="${date}">${d}/${m}/${y}</td>${cells}<td class="num-cell" style="font-weight:700;">${rowTotal30}</td><td class="num-cell" style="color:var(--yellow);">${tg ?? '–'}</td></tr>`;
   });
   wrap.innerHTML = `<table>${head}${body}</table>`;
