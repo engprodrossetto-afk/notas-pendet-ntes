@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel Diário — Notas Pendentes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --navy:#2D336F;
+    --navy-deep:#1F2450;
+    --navy-light:#4A5293;
+    --bg:#F4F5F8;
+    --card:#FFFFFF;
+    --line:#E4E6ED;
+    --text:#1C2030;
+    --muted:#6B7280;
+    --green:#15803D;
+    --green-bg:#E7F5EC;
+    --yellow:#B45309;
+    --yellow-bg:#FEF3DD;
+    --red:#B91C1C;
+    --red-bg:#FCE8E8;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+  header{
+    background:linear-gradient(135deg,var(--navy) 0%,var(--navy-deep) 100%);
+    color:#fff;
+    padding:20px 22px 24px;
+  }
+  header h1{margin:0;font-size:19px;font-weight:800;letter-spacing:-0.01em;}
+  header p{margin:4px 0 0;font-size:13px;color:#C9CDE8;}
+  main{max-width:1180px;margin:0 auto;padding:16px 18px 48px;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px;
+    margin-bottom:16px;
+  }
+  .card-title{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:12px;
+  }
+  .card-title h2{font-size:14px;font-weight:700;margin:0;text-transform:uppercase;letter-spacing:.04em;color:var(--navy);}
+  .datebar{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+  .datebar button{
+    background:var(--card);border:1px solid var(--line);border-radius:8px;
+    width:34px;height:34px;font-size:15px;cursor:pointer;color:var(--navy);font-weight:700;
+  }
+  .datebar input[type=date]{
+    flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;color:var(--text);
+  }
+  .gear{background:none;border:none;font-size:17px;cursor:pointer;color:var(--muted);padding:4px;}
+  .chamada-title{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-bottom:8px;}
+  .chamada-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-bottom:16px;}
+  .chamada-pill{
+    display:flex;align-items:center;justify-content:space-between;gap:6px;
+    padding:10px 11px;border-radius:9px;border:1.5px solid var(--line);
+    cursor:pointer;font-size:13px;font-weight:600;background:#fff;
+    user-select:none;transition:background .15s,border-color .15s;
+  }
+  .chamada-pill .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .chamada-pill .tag{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:3px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0;}
+  .chamada-pill.present{background:var(--green-bg);border-color:var(--green);}
+  .chamada-pill.present .tag{background:var(--green);color:#fff;}
+  .chamada-pill.absent{background:#F7F7F9;border-color:var(--line);}
+  .chamada-pill.absent .nm{color:var(--muted);}
+  .chamada-pill.absent .tag{background:#C9CCD4;color:#fff;}
+  .chamada-actions{display:flex;gap:8px;margin-bottom:14px;}
+  .chamada-actions button{
+    flex:1;padding:7px;border:1px dashed var(--line);border-radius:7px;background:none;
+    font-size:11.5px;font-weight:600;color:var(--muted);cursor:pointer;
+  }
+  .obra-row.ausente{background:var(--red-bg);margin:0 -8px;padding:9px 8px;border-radius:6px;}
+  .falta-tag{
+    font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;
+    background:var(--red);color:#fff;padding:2px 6px;border-radius:10px;vertical-align:middle;
+  }
+  .presenca-card-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px;}
+  .presenca-card-row:last-of-type{border-bottom:none;}
+  .presenca-card-row .pct{font-family:'JetBrains Mono',monospace;font-weight:700;}
+    display:grid;
+    grid-template-columns:1fr 78px 78px;
+    gap:8px;align-items:center;
+    padding:9px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .obra-row:last-of-type{border-bottom:none;}
+  .obra-name{font-size:14px;font-weight:600;}
+  .obra-name input{
+    width:100%;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:13px;font-family:inherit;
+  }
+  .obra-row input[type=number]{
+    width:100%;padding:7px 6px;border:1px solid var(--line);border-radius:7px;
+    font-family:'JetBrains Mono',monospace;font-size:13px;text-align:center;
+  }
+  .col-labels{
+    display:grid;grid-template-columns:1fr 78px 78px;gap:8px;
+    font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700;
+    padding-bottom:6px;border-bottom:1px solid var(--line);margin-bottom:2px;
+  }
+  .col-labels span:nth-child(2),.col-labels span:nth-child(3){text-align:center;}
+  .empty-absent-hint{color:var(--muted);font-size:12px;padding:8px 0;text-align:center;}
+  .btn-save{
+    width:100%;margin-top:14px;padding:13px;border:none;border-radius:9px;
+    background:var(--navy);color:#fff;font-weight:700;font-size:14px;cursor:pointer;
+  }
+  .btn-save:active{background:var(--navy-deep);}
+  .btn-save:disabled{opacity:.55;cursor:default;}
+  .summary-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+  .chip{
+    flex:1;min-width:45%;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:12px 10px;text-align:center;
+  }
+  .total-geral-box{
+    margin-top:14px;padding:12px;border:1.5px dashed var(--navy-light);border-radius:9px;background:#F8F8FD;
+  }
+  .total-geral-box label{font-size:11.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.03em;display:block;margin-bottom:6px;}
+  .total-geral-box input{
+    width:100%;padding:10px;border:1px solid var(--line);border-radius:7px;
+    font-family:'JetBrains Mono',monospace;font-size:16px;text-align:center;font-weight:700;color:var(--navy);
+  }
+  .melhora-row{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:10px 0;border-bottom:1px solid var(--line);
+  }
+  .melhora-row:last-of-type{border-bottom:none;}
+  .melhora-row .nm{font-size:13.5px;font-weight:600;}
+  .melhora-row .deltas{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
+  .melhora-tag{
+    font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:700;
+    padding:3px 8px;border-radius:20px;background:var(--green-bg);color:var(--green);white-space:nowrap;
+  }
+  .melhora-compare{font-size:10px;color:var(--muted);margin-top:-4px;margin-bottom:10px;}
+  .chip .v{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--navy);}
+  .chip .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-top:2px;}
+  .chip.alert .v{color:var(--red);}
+  select{
+    padding:7px 9px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit;background:#fff;
+  }
+  canvas{max-height:340px;}
+  .chart-box{position:relative;width:100%;height:340px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:9px 8px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap;}
+  th{color:var(--muted);font-weight:700;text-transform:uppercase;font-size:9.5px;letter-spacing:.03em;}
+  td.date-cell{text-align:left;font-weight:600;cursor:pointer;color:var(--navy);font-family:'JetBrains Mono',monospace;font-size:11.5px;}
+  td.date-cell:hover{text-decoration:underline;}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:middle;}
+  .dot.green{background:var(--green);}
+  .dot.yellow{background:var(--yellow);}
+  .dot.red{background:var(--red);}
+  td.num-cell{font-family:'JetBrains Mono',monospace;font-weight:600;}
+  .table-wrap{overflow-x:auto;border-radius:8px;}
+  .empty-hint{color:var(--muted);font-size:13px;text-align:center;padding:18px 0;}
+  .footer-actions{display:flex;gap:8px;}
+  .footer-actions button{
+    flex:1;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fff;
+    font-size:12.5px;font-weight:600;color:var(--navy);cursor:pointer;
+  }
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin-top:10px;flex-wrap:wrap;}
+  .legend span{display:flex;align-items:center;gap:5px;}
+  .toast{
+    position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+    background:var(--navy-deep);color:#fff;padding:10px 18px;border-radius:30px;
+    font-size:13px;font-weight:600;opacity:0;transition:opacity .25s;pointer-events:none;z-index:50;
+    max-width:88%;text-align:center;
+  }
+  .toast.show{opacity:1;}
+  .settings-panel{display:none;margin-bottom:10px;}
+  .settings-panel.open{display:block;}
+  .settings-panel .obra-name input{margin-bottom:6px;}
+  .add-obra-btn{
+    width:100%;padding:9px;border:1px dashed var(--navy-light);border-radius:8px;background:none;
+    color:var(--navy);font-weight:600;font-size:13px;cursor:pointer;margin-top:4px;
+  }
+  .small-note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;}
+  .sync-badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:14px;}
+  .sync-badge .dot2{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;}
+  .sync-badge.offline .dot2{background:var(--red);}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Painel Diário — Notas Pendentes</h1>
+  <p>Almoxarifado · Tripoloni · acompanhamento por obra</p>
+</header>
+
+<main>
+
+  <div class="sync-badge" id="syncBadge"><span class="dot2"></span><span id="syncText">conectando ao banco…</span></div>
+
+  <div class="card">
+    <div class="card-title">
+      <h2>Lançamento do dia</h2>
+      <button class="gear" id="gearBtn" title="Editar nomes das obras">⚙</button>
+    </div>
+
+    <div class="settings-panel" id="settingsPanel">
+      <div id="namesEditor"></div>
+      <button class="add-obra-btn" id="addObraBtn">+ Adicionar obra</button>
+      <button class="btn-save" id="saveNamesBtn" style="margin-top:6px;">Salvar nomes</button>
+    </div>
+
+    <div class="datebar">
+      <button id="prevDay">‹</button>
+      <input type="date" id="datePicker">
+      <button id="nextDay">›</button>
+    </div>
+
+    <div class="chamada-title">Chamada — quem participou hoje</div>
+    <div class="chamada-grid" id="chamadaGrid"></div>
+    <div class="chamada-actions">
+      <button id="markAllPresent">Marcar todos presentes</button>
+      <button id="markAllAbsent">Marcar todos ausentes</button>
+    </div>
+
+    <div class="col-labels">
+      <span>Obra</span><span>Total</span><span>&gt;30d</span>
+    </div>
+    <div id="formRows"></div>
+
+    <div class="total-geral-box">
+      <label for="inpTotalGeral">Total geral da empresa (todas as obras, não calculado)</label>
+      <input type="number" min="0" id="inpTotalGeral" placeholder="Ex.: 350">
+    </div>
+
+    <button class="btn-save" id="saveDayBtn">Salvar dia</button>
+  </div>
+
+  <div class="summary-row" id="summaryRow"></div>
+
+  <div class="card">
+    <div class="card-title">
+      <h2>Destaques — obras em melhora</h2>
+      <select id="periodoSelect">
+        <option value="7">Últimos 7 dias</option>
+        <option value="15">Últimos 15 dias</option>
+        <option value="30">Últimos 30 dias</option>
+        <option value="all">Desde o início</option>
+      </select>
+    </div>
+    <p class="melhora-compare" id="melhoraCompareLabel"></p>
+    <div id="melhoraList"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <h2>Presenças e faltas</h2>
+      <select id="presencaPeriodoSelect">
+        <option value="7">Últimos 7 dias</option>
+        <option value="15">Últimos 15 dias</option>
+        <option value="30">Últimos 30 dias</option>
+        <option value="all">Desde o início</option>
+      </select>
+    </div>
+    <div class="chart-box" id="presencaChartBox"><canvas id="presencaChart"></canvas></div>
+    <div id="presencaList" style="margin-top:12px;"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <h2>Evolução</h2>
+      <select id="chartFilter"></select>
+    </div>
+    <div class="chart-box" id="chartBox"><canvas id="chart"></canvas></div>
+    <div class="legend">
+      <span><span class="dot green"></span> 0 acima de 30d</span>
+      <span><span class="dot yellow"></span> 1–3 acima de 30d</span>
+      <span><span class="dot red"></span> 4+ acima de 30d</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><h2>Histórico (clique numa data para editar)</h2></div>
+    <div class="table-wrap" id="historyTableWrap"></div>
+  </div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://eoijlqjbrvpypzduaqry.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVvaWpscWpicnZweXB6ZHVhcXJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNzk5MTEsImV4cCI6MjA5Njk1NTkxMX0.LPPKwoYbTN3TfI740pakl-ZMuhYfH7TH-HD2cJ329mY';
+const { createClient } = supabase;
+
+function sandboxSafeFetch(url, options = {}){
+  const opts = { ...options };
+  if(opts.headers && typeof Headers !== 'undefined' && opts.headers instanceof Headers){
+    const plain = {};
+    opts.headers.forEach((v,k)=>{ plain[k] = v; });
+    opts.headers = plain;
+  }
+  return fetch(url, opts);
+}
+
+const db = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  global: { fetch: sandboxSafeFetch }
+});
+
+let obras = [];            // [{id, nome, ordem}]
+let entries = {};          // { 'YYYY-MM-DD': { [obraId]: {participou,total_pendente,acima_30_dias} } }
+let totaisGerais = {};     // { 'YYYY-MM-DD': number|null } — total geral informado manualmente
+let participacaoMap = {};  // { [obraId]: boolean } — estado da chamada para currentDate (antes de salvar)
+let currentDate = todayStr();
+let chartInstance = null;
+let presencaChartInstance = null;
+
+function todayStr(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+
+function toast(msg, isError){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isError ? '#B91C1C' : '';
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+function setSync(ok, text){
+  const badge = document.getElementById('syncBadge');
+  badge.classList.toggle('offline', !ok);
+  document.getElementById('syncText').textContent = text;
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function statusOf(acima30){
+  if(acima30 === null || acima30 === undefined || acima30 === '') return 'green';
+  if(acima30 === 0) return 'green';
+  if(acima30 <= 3) return 'yellow';
+  return 'red';
+}
+
+// ---------- Carregamento ----------
+
+async function loadObras(){
+  const { data, error } = await db.from('notas_obras')
+    .select('id,nome,ordem')
+    .eq('ativo', true)
+    .order('ordem', { ascending: true });
+  if(error) throw error;
+  obras = data || [];
+}
+
+async function loadAllLancamentos(){
+  const { data, error } = await db.from('notas_lancamentos')
+    .select('data,obra_id,participou,total_pendente,acima_30_dias')
+    .order('data', { ascending: true });
+  if(error) throw error;
+  entries = {};
+  (data || []).forEach(rec=>{
+    if(!entries[rec.data]) entries[rec.data] = {};
+    entries[rec.data][rec.obra_id] = {
+      participou: rec.participou,
+      total: rec.total_pendente,
+      acima30: rec.acima_30_dias
+    };
+  });
+}
+
+async function loadTotaisGerais(){
+  const { data, error } = await db.from('notas_totais_diarios')
+    .select('data,total_geral');
+  if(error) throw error;
+  totaisGerais = {};
+  (data || []).forEach(rec=>{ totaisGerais[rec.data] = rec.total_geral; });
+}
+
+function loadParticipacaoForDate(date){
+  const dayData = entries[date] || {};
+  participacaoMap = {};
+  obras.forEach(o=>{
+    const rec = dayData[o.id];
+    participacaoMap[o.id] = rec ? !!rec.participou : true;
+  });
+}
+
+// ---------- Chamada ----------
+
+function renderChamada(){
+  const grid = document.getElementById('chamadaGrid');
+  grid.innerHTML = '';
+  obras.forEach(o=>{
+    const present = participacaoMap[o.id];
+    const pill = document.createElement('div');
+    pill.className = 'chamada-pill ' + (present ? 'present' : 'absent');
+    pill.innerHTML = `<span class="nm">${escapeHtml(o.nome)}</span><span class="tag">${present ? 'Presente' : 'Ausente'}</span>`;
+    pill.addEventListener('click', ()=>{
+      participacaoMap[o.id] = !participacaoMap[o.id];
+      renderChamada();
+      renderFormRows();
+    });
+    grid.appendChild(pill);
+  });
+}
+
+function renderTotalGeralInput(){
+  const input = document.getElementById('inpTotalGeral');
+  const val = totaisGerais[currentDate];
+  input.value = (val === null || val === undefined) ? '' : val;
+}
+
+// ---------- Linhas de lançamento ----------
+
+function renderFormRows(){
+  const wrap = document.getElementById('formRows');
+  wrap.innerHTML = '';
+  const dayData = entries[currentDate] || {};
+
+  obras.forEach(o=>{
+    const rec = dayData[o.id] || {};
+    const present = participacaoMap[o.id];
+    const row = document.createElement('div');
+    row.className = 'obra-row' + (present ? '' : ' ausente');
+    row.dataset.id = o.id;
+    row.innerHTML = `
+      <div class="obra-name">${escapeHtml(o.nome)}${present ? '' : ' <span class="falta-tag">falta</span>'}</div>
+      <input type="number" min="0" class="inp-total" placeholder="–" value="${rec.total ?? ''}">
+      <input type="number" min="0" class="inp-30" placeholder="–" value="${rec.acima30 ?? ''}">
+    `;
+    wrap.appendChild(row);
+  });
+}
+
+// ---------- Salvar dia ----------
+
+async function handleSaveDay(){
+  const btn = document.getElementById('saveDayBtn');
+  btn.disabled = true;
+  btn.textContent = 'Salvando…';
+
+  const records = obras.map(o=>{
+    const present = participacaoMap[o.id];
+    const row = document.querySelector(`#formRows .obra-row[data-id="${o.id}"]`);
+    const tVal = row ? row.querySelector('.inp-total').value : '';
+    const aVal = row ? row.querySelector('.inp-30').value : '';
+    return {
+      obra_id: o.id,
+      data: currentDate,
+      participou: present,
+      total_pendente: tVal !== '' ? Number(tVal) : null,
+      acima_30_dias: aVal !== '' ? Number(aVal) : null
+    };
+  });
+
+  const { error } = await db.from('notas_lancamentos')
+    .upsert(records, { onConflict: 'obra_id,data' });
+
+  let totalGeralError = null;
+  const tgVal = document.getElementById('inpTotalGeral').value;
+  const totalGeralNum = tgVal !== '' ? Number(tgVal) : null;
+  const { error: tgErr } = await db.from('notas_totais_diarios')
+    .upsert({ data: currentDate, total_geral: totalGeralNum }, { onConflict: 'data' });
+  totalGeralError = tgErr;
+
+  btn.disabled = false;
+  btn.textContent = 'Salvar dia';
+
+  if(error || totalGeralError){
+    const detail = (error && error.message) || (totalGeralError && totalGeralError.message) || 'erro desconhecido';
+    console.error('Erro ao salvar dia:', detail);
+    toast('Erro ao salvar: ' + detail, true);
+    return;
+  }
+
+  totaisGerais[currentDate] = totalGeralNum;
+
+  // atualiza cache local
+  entries[currentDate] = {};
+  records.forEach(r=>{
+    entries[currentDate][r.obra_id] = {
+      participou: r.participou, total: r.total_pendente, acima30: r.acima_30_dias
+    };
+  });
+
+  toast('Dia salvo ✓');
+  renderSummary();
+  renderMelhorias();
+  renderPresencaChart();
+  renderChartFilterOptions();
+  renderChart();
+  renderHistoryTable();
+}
+
+// ---------- Resumo ----------
+
+function renderSummary(){
+  const dayObj = entries[currentDate] || {};
+  let totalGeral = 0, total30 = 0, presentes = 0;
+  obras.forEach(o=>{
+    const rec = dayObj[o.id];
+    if(rec){
+      totalGeral += rec.total || 0;
+      total30 += rec.acima30 || 0;
+      if(rec.participou) presentes++;
+    }
+  });
+  const tgInformado = totaisGerais[currentDate];
+  const wrap = document.getElementById('summaryRow');
+  wrap.innerHTML = `
+    <div class="chip"><div class="v mono">${presentes}/${obras.length}</div><div class="l">Presentes hoje</div></div>
+    <div class="chip"><div class="v mono">${totalGeral}</div><div class="l">Soma das obras</div></div>
+    <div class="chip ${total30>0?'alert':''}"><div class="v mono">${total30}</div><div class="l">Acima de 30 dias</div></div>
+    <div class="chip"><div class="v mono">${tgInformado ?? '–'}</div><div class="l">Total geral (informado)</div></div>
+  `;
+}
+
+// ---------- Presenças e faltas ----------
+
+function renderPresencaChart(){
+  const periodoVal = document.getElementById('presencaPeriodoSelect').value;
+  let datesInPeriod;
+  if(periodoVal === 'all'){
+    datesInPeriod = Object.keys(entries);
+  } else {
+    const cutoff = addDaysStr(currentDate, -Number(periodoVal));
+    datesInPeriod = Object.keys(entries).filter(d => d >= cutoff && d <= currentDate);
+  }
+
+  const labels = [];
+  const presentCounts = [];
+  const absentCounts = [];
+  const stats = [];
+
+  obras.forEach(o=>{
+    let p = 0, a = 0;
+    datesInPeriod.forEach(d=>{
+      const rec = entries[d][o.id];
+      if(rec){ rec.participou ? p++ : a++; }
+    });
+    labels.push(o.nome);
+    presentCounts.push(p);
+    absentCounts.push(a);
+    const total = p + a;
+    stats.push({ nome:o.nome, p, a, pct: total > 0 ? Math.round((p/total)*100) : null });
+  });
+
+  const listWrap = document.getElementById('presencaList');
+  listWrap.innerHTML = stats.map(s=>{
+    const pctTxt = s.pct === null ? 'sem dados' : `${s.pct}% presença`;
+    const cor = s.pct === null ? 'var(--muted)' : (s.pct >= 80 ? 'var(--green)' : (s.pct >= 50 ? 'var(--yellow)' : 'var(--red)'));
+    return `<div class="presenca-card-row"><span>${escapeHtml(s.nome)} <span style="color:var(--muted);">(${s.p}P / ${s.a}F)</span></span><span class="pct" style="color:${cor};">${pctTxt}</span></div>`;
+  }).join('');
+
+  if(typeof Chart === 'undefined'){
+    document.getElementById('presencaChartBox').style.height = 'auto';
+    document.getElementById('presencaChart').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('presencaChartBox').style.height = Math.max(180, obras.length*38) + 'px';
+  const ctx = document.getElementById('presencaChart').getContext('2d');
+  if(presencaChartInstance) presencaChartInstance.destroy();
+  presencaChartInstance = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        { label:'Presente', data: presentCounts, backgroundColor:'#15803D' },
+        { label:'Ausente', data: absentCounts, backgroundColor:'#B91C1C' }
+      ]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{
+        x:{ stacked:true, beginAtZero:true, ticks:{ precision:0 } },
+        y:{ stacked:true }
+      },
+      plugins:{ legend:{ position:'bottom', labels:{ font:{ size:11 } } } }
+    }
+  });
+}
+
+function addDaysStr(dateStr, delta){
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  return d.toISOString().slice(0,10);
+}
+
+function getRecordAtOrBefore(obraId, date){
+  const dates = Object.keys(entries).filter(d => d <= date && entries[d][obraId]).sort();
+  if(dates.length === 0) return null;
+  const last = dates[dates.length - 1];
+  return { date: last, rec: entries[last][obraId] };
+}
+
+function getEarliestRecord(obraId){
+  const dates = Object.keys(entries).filter(d => entries[d][obraId]).sort();
+  if(dates.length === 0) return null;
+  return { date: dates[0], rec: entries[dates[0]][obraId] };
+}
+
+function renderMelhorias(){
+  const periodoVal = document.getElementById('periodoSelect').value;
+  const label = document.getElementById('melhoraCompareLabel');
+  const wrap = document.getElementById('melhoraList');
+  const hojeObj = entries[currentDate] || {};
+
+  const melhorias = [];
+  let comparacoesValidas = 0;
+
+  obras.forEach(o=>{
+    const hoje = hojeObj[o.id];
+    if(!hoje) return;
+
+    let antesInfo;
+    if(periodoVal === 'all'){
+      antesInfo = getEarliestRecord(o.id);
+    } else {
+      const cutoff = addDaysStr(currentDate, -Number(periodoVal));
+      antesInfo = getRecordAtOrBefore(o.id, cutoff);
+    }
+    if(!antesInfo || antesInfo.date >= currentDate) return; // sem histórico suficiente nesse período
+
+    comparacoesValidas++;
+    const antes = antesInfo.rec;
+    const hT = hoje.total ?? null, aT = antes.total ?? null;
+    const h30 = hoje.acima30 ?? null, a30 = antes.acima30 ?? null;
+    const deltaTotal = (hT !== null && aT !== null) ? hT - aT : null;
+    const delta30 = (h30 !== null && a30 !== null) ? h30 - a30 : null;
+    const melhorouTotal = deltaTotal !== null && deltaTotal < 0;
+    const melhorou30 = delta30 !== null && delta30 < 0;
+    if(melhorouTotal || melhorou30){
+      melhorias.push({ nome:o.nome, deltaTotal, delta30, melhorouTotal, melhorou30, desde: antesInfo.date });
+    }
+  });
+
+  if(comparacoesValidas === 0){
+    label.textContent = '';
+    wrap.innerHTML = '<p class="empty-hint">Ainda não há dados antigos suficientes nesse período para comparar.</p>';
+    return;
+  }
+
+  const periodoTexto = periodoVal === 'all' ? 'desde o início dos lançamentos' : `nos últimos ${periodoVal} dias`;
+  label.textContent = `Comparando ${periodoTexto} (referência: hoje, ${currentDate.split('-').reverse().join('/')})`;
+
+  if(melhorias.length === 0){
+    wrap.innerHTML = '<p class="empty-hint">Nenhuma obra reduziu pendências nesse período.</p>';
+    return;
+  }
+
+  melhorias.sort((a,b)=>{
+    const score = x => (x.melhorou30 ? x.delta30 : 0) + (x.melhorouTotal ? x.deltaTotal : 0);
+    return score(a) - score(b);
+  });
+
+  wrap.innerHTML = melhorias.map(m=>{
+    const tags = [];
+    if(m.melhorou30) tags.push(`<span class="melhora-tag">▼ ${Math.abs(m.delta30)} acima de 30d</span>`);
+    if(m.melhorouTotal) tags.push(`<span class="melhora-tag">▼ ${Math.abs(m.deltaTotal)} total</span>`);
+    const [dy,dm,dd] = m.desde.split('-');
+    return `<div class="melhora-row"><span class="nm">${escapeHtml(m.nome)}<br><span style="font-size:10px;color:var(--muted);font-weight:400;">desde ${dd}/${dm}/${dy}</span></span><div class="deltas">${tags.join('')}</div></div>`;
+  }).join('');
+}
+
+// ---------- Gráfico ----------
+
+function renderChartFilterOptions(){
+  const sel = document.getElementById('chartFilter');
+  const prev = sel.value;
+  sel.innerHTML = `<option value="-1">Todas as obras</option>` +
+    obras.map(o=>`<option value="${o.id}">${escapeHtml(o.nome)}</option>`).join('');
+  if(prev) sel.value = prev;
+}
+
+function renderChart(){
+  if(typeof Chart === 'undefined'){
+    const box = document.getElementById('chartBox');
+    box.style.height = 'auto';
+    document.getElementById('chart').style.display = 'none';
+    let msg = document.getElementById('chartFallbackMsg');
+    if(!msg){
+      msg = document.createElement('p');
+      msg.id = 'chartFallbackMsg';
+      msg.className = 'empty-hint';
+      box.appendChild(msg);
+    }
+    msg.textContent = 'Gráfico indisponível agora (biblioteca não carregou) — os dados continuam salvos normalmente.';
+    return;
+  }
+  const dates = Object.keys(entries).sort();
+  const filterId = document.getElementById('chartFilter').value || '-1';
+
+  const totalSeries = [];
+  const total30Series = [];
+  const totalGeralSeries = [];
+
+  dates.forEach(date=>{
+    const dayObj = entries[date];
+    let t = 0, t30 = 0;
+    if(filterId === '-1'){
+      Object.values(dayObj).forEach(rec=>{
+        t += rec.total||0; t30 += rec.acima30||0;
+      });
+    } else {
+      const rec = dayObj[filterId];
+      if(rec){ t = rec.total||0; t30 = rec.acima30||0; }
+    }
+    totalSeries.push(t);
+    total30Series.push(t30);
+    totalGeralSeries.push(totaisGerais[date] ?? null);
+  });
+
+  const labels = dates.map(d=> d.slice(8,10)+'/'+d.slice(5,7));
+
+  const datasets = [
+    { label:'Total pendente (soma obras)', data: totalSeries, borderColor:'#2D336F', backgroundColor:'rgba(45,51,111,0.08)', tension:.25, fill:true, pointRadius:3 },
+    { label:'Acima de 30 dias', data: total30Series, borderColor:'#B91C1C', backgroundColor:'rgba(185,28,28,0.06)', tension:.25, fill:true, pointRadius:3 }
+  ];
+  if(filterId === '-1'){
+    datasets.push({ label:'Total geral (informado)', data: totalGeralSeries, borderColor:'#B45309', backgroundColor:'rgba(180,83,9,0.06)', tension:.25, fill:false, pointRadius:3, borderDash:[5,3], spanGaps:true });
+  }
+
+  if(chartInstance) chartInstance.destroy();
+  document.getElementById('chartBox').style.height = '340px';
+  const ctx = document.getElementById('chart').getContext('2d');
+  chartInstance = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{ legend:{ position:'bottom', labels:{ font:{ size:11 } } } },
+      scales:{ y:{ beginAtZero:true, ticks:{ precision:0 } } }
+    }
+  });
+}
+
+// ---------- Histórico ----------
+
+function renderHistoryTable(){
+  const dates = Object.keys(entries).sort().reverse();
+  const wrap = document.getElementById('historyTableWrap');
+  if(dates.length === 0){
+    wrap.innerHTML = '<p class="empty-hint">Nenhum dia lançado ainda.</p>';
+    return;
+  }
+  let head = '<tr><th>Data</th>' + obras.map(o=>`<th>${escapeHtml(o.nome)}</th>`).join('') + '<th>Total &gt;30d</th><th>Tot. Geral</th></tr>';
+  let body = '';
+  dates.forEach(date=>{
+    const dayObj = entries[date];
+    let rowTotal30 = 0;
+    let cells = '';
+    obras.forEach(o=>{
+      const rec = dayObj[o.id];
+      if(!rec || rec.acima30 === null || rec.acima30 === undefined){
+        cells += '<td class="num-cell" style="color:#C7C9D1;">–</td>';
+      } else {
+        const st = statusOf(rec.acima30);
+        rowTotal30 += rec.acima30||0;
+        cells += `<td class="num-cell"><span class="dot ${st}"></span>${rec.acima30}</td>`;
+      }
+    });
+    const [y,m,d] = date.split('-');
+    const tg = totaisGerais[date];
+    body += `<tr><td class="date-cell" data-date="${date}">${d}/${m}/${y}</td>${cells}<td class="num-cell" style="font-weight:700;">${rowTotal30}</td><td class="num-cell" style="color:var(--yellow);">${tg ?? '–'}</td></tr>`;
+  });
+  wrap.innerHTML = `<table>${head}${body}</table>`;
+
+  wrap.querySelectorAll('.date-cell').forEach(cell=>{
+    cell.addEventListener('click', ()=>{
+      currentDate = cell.dataset.date;
+      document.getElementById('datePicker').value = currentDate;
+      loadParticipacaoForDate(currentDate);
+      renderChamada();
+      renderFormRows();
+      renderTotalGeralInput();
+      renderSummary();
+      renderMelhorias();
+      renderPresencaChart();
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+}
+
+// ---------- Editor de nomes / adicionar obra ----------
+
+function renderNamesEditor(){
+  const wrap = document.getElementById('namesEditor');
+  wrap.innerHTML = obras.map(o=>
+    `<div class="obra-name"><input type="text" data-id="${o.id}" value="${escapeHtml(o.nome)}"></div>`
+  ).join('');
+}
+
+async function reloadObrasAndRefresh(){
+  await loadObras();
+  loadParticipacaoForDate(currentDate);
+  renderChamada();
+  renderFormRows();
+  renderChartFilterOptions();
+  renderChart();
+  renderHistoryTable();
+}
+
+// ---------- Eventos ----------
+
+function setupEvents(){
+  document.getElementById('datePicker').value = currentDate;
+  document.getElementById('datePicker').addEventListener('change', (e)=>{
+    currentDate = e.target.value;
+    loadParticipacaoForDate(currentDate);
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderMelhorias(); renderPresencaChart();
+  });
+  document.getElementById('prevDay').addEventListener('click', ()=>{
+    const d = new Date(currentDate); d.setDate(d.getDate()-1);
+    currentDate = d.toISOString().slice(0,10);
+    document.getElementById('datePicker').value = currentDate;
+    loadParticipacaoForDate(currentDate);
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderMelhorias(); renderPresencaChart();
+  });
+  document.getElementById('nextDay').addEventListener('click', ()=>{
+    const d = new Date(currentDate); d.setDate(d.getDate()+1);
+    currentDate = d.toISOString().slice(0,10);
+    document.getElementById('datePicker').value = currentDate;
+    loadParticipacaoForDate(currentDate);
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderMelhorias(); renderPresencaChart();
+  });
+  document.getElementById('saveDayBtn').addEventListener('click', handleSaveDay);
+
+  document.getElementById('markAllPresent').addEventListener('click', ()=>{
+    obras.forEach(o=> participacaoMap[o.id] = true);
+    renderChamada(); renderFormRows();
+  });
+  document.getElementById('markAllAbsent').addEventListener('click', ()=>{
+    obras.forEach(o=> participacaoMap[o.id] = false);
+    renderChamada(); renderFormRows();
+  });
+
+  document.getElementById('gearBtn').addEventListener('click', ()=>{
+    const panel = document.getElementById('settingsPanel');
+    panel.classList.toggle('open');
+    if(panel.classList.contains('open')) renderNamesEditor();
+  });
+
+  document.getElementById('addObraBtn').addEventListener('click', ()=>{
+    const wrap = document.getElementById('namesEditor');
+    const div = document.createElement('div');
+    div.className = 'obra-name';
+    div.innerHTML = `<input type="text" data-id="" value="Obra ${wrap.children.length + 1}">`;
+    wrap.appendChild(div);
+    div.querySelector('input').focus();
+  });
+
+  document.getElementById('saveNamesBtn').addEventListener('click', async ()=>{
+    const saveBtn = document.getElementById('saveNamesBtn');
+    saveBtn.disabled = true;
+    const rows = document.querySelectorAll('#namesEditor input');
+    let ok = true;
+
+    const maxOrdem = obras.length ? Math.max(...obras.map(o=>o.ordem)) : 0;
+    let nextOrdem = maxOrdem + 1;
+
+    for(const input of rows){
+      const nome = input.value.trim() || 'Obra';
+      const id = input.dataset.id;
+      if(id){
+        const { error } = await db.from('notas_obras').update({ nome }).eq('id', id);
+        if(error){ ok = false; console.error(error); }
+      } else {
+        const { error } = await db.from('notas_obras').insert({ nome, ordem: nextOrdem++ });
+        if(error){ ok = false; console.error(error); }
+      }
+    }
+
+    await reloadObrasAndRefresh();
+    document.getElementById('settingsPanel').classList.remove('open');
+    saveBtn.disabled = false;
+    toast(ok ? 'Nomes atualizados ✓' : 'Algumas alterações falharam — veja o console', !ok);
+  });
+
+  document.getElementById('chartFilter').addEventListener('change', renderChart);
+  document.getElementById('periodoSelect').addEventListener('change', renderMelhorias);
+  document.getElementById('presencaPeriodoSelect').addEventListener('change', renderPresencaChart);
+}
+
+// ---------- Inicialização ----------
+
+async function init(){
+  setupEvents();
+  try{
+    await loadObras();
+    await loadAllLancamentos();
+    await loadTotaisGerais();
+    setSync(true, 'conectado — dados salvos em tempo real');
+  }catch(e){
+    const detail = (e && (e.message || e.error_description || e.hint)) || JSON.stringify(e);
+    console.error('Erro ao conectar com o banco:', detail);
+    setSync(false, 'sem conexão com o banco agora — tente recarregar');
+    toast('Erro: ' + detail, true);
+  }
+  loadParticipacaoForDate(currentDate);
+  renderChamada();
+  renderFormRows();
+  renderTotalGeralInput();
+  renderSummary();
+  renderMelhorias();
+  renderPresencaChart();
+  renderChartFilterOptions();
+  renderChart();
+  renderHistoryTable();
+}
+
+init();
+</script>
+</body>
+</html>
