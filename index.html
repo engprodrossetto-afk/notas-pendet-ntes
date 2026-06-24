@@ -808,6 +808,8 @@ function renderRankingObras(){
 
   obras.forEach(o=>{
     const hoje = hojeObj[o.id];
+    const zerada = !!hoje && hoje.acima30 === 0;
+
     let antesInfo = null;
     if(hoje){
       if(periodoVal === 'all'){
@@ -820,7 +822,7 @@ function renderRankingObras(){
     }
 
     if(!hoje || !antesInfo){
-      ranking.push({ nome:o.nome, semDados:true, score:Infinity });
+      ranking.push({ nome:o.nome, semDados:true, score:Infinity, zerada });
       return;
     }
 
@@ -831,13 +833,18 @@ function renderRankingObras(){
     const delta30 = (h30 !== null && a30 !== null) ? h30 - a30 : null;
     const score = (delta30 ?? 0) * 2 + (deltaTotal ?? 0);
 
-    ranking.push({ nome:o.nome, semDados:false, deltaTotal, delta30, score, desde: antesInfo.date });
+    ranking.push({ nome:o.nome, semDados:false, deltaTotal, delta30, score, desde: antesInfo.date, zerada });
   });
 
   const periodoTexto = periodoVal === 'all' ? 'desde o início dos lançamentos' : `nos últimos ${periodoVal} dias`;
-  label.textContent = `Comparando ${periodoTexto} (referência: hoje, ${currentDate.split('-').reverse().join('/')})`;
+  label.textContent = `Comparando ${periodoTexto} (referência: hoje, ${currentDate.split('-').reverse().join('/')}) · ⭐ = sem nenhuma nota acima de 30 dias hoje`;
 
-  ranking.sort((a,b)=> a.score - b.score);
+  ranking.sort((a,b)=>{
+    const za = a.zerada ? 0 : 1;
+    const zb = b.zerada ? 0 : 1;
+    if(za !== zb) return za - zb;
+    return a.score - b.score;
+  });
 
   const tagFor = (delta, sufixo)=>{
     if(delta === null || delta === undefined) return `<span class="rank-delta neutro">– ${sufixo}</span>`;
@@ -854,7 +861,8 @@ function renderRankingObras(){
     } else {
       deltasHtml = `${tagFor(r.delta30, '>30d')}${tagFor(r.deltaTotal, 'total')}`;
     }
-    return `<div class="ranking-row"><span class="rank-num">${num}</span><span class="rank-nome">${escapeHtml(r.nome)}</span><div class="rank-deltas">${deltasHtml}</div></div>`;
+    const estrela = r.zerada ? '⭐ ' : '';
+    return `<div class="ranking-row"><span class="rank-num">${num}</span><span class="rank-nome">${estrela}${escapeHtml(r.nome)}</span><div class="rank-deltas">${deltasHtml}</div></div>`;
   }).join('');
 }
 
