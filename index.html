@@ -92,6 +92,7 @@
   .presenca-card-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px;}
   .presenca-card-row:last-of-type{border-bottom:none;}
   .presenca-card-row .pct{font-family:'JetBrains Mono',monospace;font-weight:700;}
+  .obra-row{
     display:grid;
     grid-template-columns:1fr 78px 78px;
     gap:8px;align-items:center;
@@ -190,6 +191,16 @@
   .sync-badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:14px;}
   .sync-badge .dot2{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;}
   .sync-badge.offline .dot2{background:var(--red);}
+
+  @media (min-width: 760px){
+    .chamada-grid{grid-template-columns:repeat(3,1fr);}
+    .chip{min-width:auto;}
+    .obra-row{grid-template-columns:minmax(200px,1fr) 110px 110px;}
+    .col-labels{grid-template-columns:minmax(200px,1fr) 110px 110px;}
+  }
+  @media (min-width: 1020px){
+    .chamada-grid{grid-template-columns:repeat(4,1fr);}
+  }
 </style>
 </head>
 <body>
