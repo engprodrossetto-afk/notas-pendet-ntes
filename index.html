@@ -201,13 +201,78 @@
   @media (min-width: 1020px){
     .chamada-grid{grid-template-columns:repeat(4,1fr);}
   }
+
+  .gate-screen{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg,var(--navy) 0%,var(--navy-deep) 100%);
+    padding:20px;
+  }
+  .gate-card{
+    background:#fff;border-radius:16px;padding:32px 26px;max-width:380px;width:100%;
+    text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.25);
+  }
+  .gate-card h1{font-size:20px;color:var(--navy);margin:0 0 4px;font-weight:800;line-height:1.25;}
+  .gate-sub{color:var(--muted);font-size:13px;margin:0 0 26px;}
+  .gate-btn{
+    width:100%;padding:14px;border-radius:10px;border:none;font-size:14.5px;font-weight:700;
+    cursor:pointer;margin-bottom:6px;
+  }
+  .gate-btn-viewer{background:var(--green);color:#fff;}
+  .gate-btn-admin{background:#fff;color:var(--navy);border:1.5px solid var(--navy-light);}
+  .gate-hint{font-size:11px;color:var(--muted);margin:0 0 18px;}
+  .gate-divider{display:flex;align-items:center;color:var(--muted);font-size:11px;margin:6px 0 14px;}
+  .gate-divider::before,.gate-divider::after{content:'';flex:1;height:1px;background:var(--line);}
+  .gate-divider span{padding:0 10px;}
+  .admin-login-box{display:none;margin-top:14px;text-align:left;}
+  .admin-login-box.open{display:block;}
+  .admin-login-box input{
+    width:100%;padding:11px;border:1px solid var(--line);border-radius:8px;font-size:14px;
+    margin-bottom:8px;font-family:inherit;
+  }
+  .gate-error{color:var(--red);font-size:12px;margin:6px 0 0;min-height:14px;}
+  .header-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+  .mode-indicator{font-size:11px;color:#C9CDE8;text-align:right;flex-shrink:0;white-space:nowrap;}
+  .mode-indicator button{
+    background:none;border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:14px;
+    padding:4px 10px;font-size:10.5px;cursor:pointer;margin-top:4px;
+  }
+  body.mode-viewer .admin-only{display:none !important;}
+  .viewer-readonly{background:#F7F7F9 !important;color:var(--muted) !important;cursor:default;}
 </style>
 </head>
 <body>
 
+<div id="gateScreen" class="gate-screen">
+  <div class="gate-card">
+    <h1>Painel Diário<br>Notas Pendentes</h1>
+    <p class="gate-sub">Almoxarifado · Tripoloni</p>
+
+    <button class="gate-btn gate-btn-viewer" id="btnVisitante">👁️ Entrar como visitante</button>
+    <p class="gate-hint">Visualiza tudo, sem poder editar ou salvar</p>
+
+    <div class="gate-divider"><span>ou</span></div>
+
+    <button class="gate-btn gate-btn-admin" id="btnAdmToggle">🔐 Entrar como administrador</button>
+
+    <div id="adminLoginBox" class="admin-login-box">
+      <input type="email" id="admEmail" placeholder="E-mail" autocomplete="username">
+      <input type="password" id="admPassword" placeholder="Senha" autocomplete="current-password">
+      <button class="btn-save" id="btnAdmLogin">Entrar</button>
+      <p class="gate-error" id="admLoginError"></p>
+    </div>
+  </div>
+</div>
+
+<div id="appContent" style="display:none;">
+
 <header>
-  <h1>Painel Diário — Notas Pendentes</h1>
-  <p>Almoxarifado · Tripoloni · acompanhamento por obra</p>
+  <div class="header-row">
+    <div>
+      <h1>Painel Diário — Notas Pendentes</h1>
+      <p>Almoxarifado · Tripoloni · acompanhamento por obra</p>
+    </div>
+    <div class="mode-indicator" id="modeIndicator"></div>
+  </div>
 </header>
 
 <main>
@@ -217,10 +282,10 @@
   <div class="card">
     <div class="card-title">
       <h2>Lançamento do dia</h2>
-      <button class="gear" id="gearBtn" title="Editar nomes das obras">⚙</button>
+      <button class="gear admin-only" id="gearBtn" title="Editar nomes das obras">⚙</button>
     </div>
 
-    <div class="settings-panel" id="settingsPanel">
+    <div class="settings-panel admin-only" id="settingsPanel">
       <div id="namesEditor"></div>
       <button class="add-obra-btn" id="addObraBtn">+ Adicionar obra</button>
       <button class="btn-save" id="saveNamesBtn" style="margin-top:6px;">Salvar nomes</button>
@@ -234,7 +299,7 @@
 
     <div class="chamada-title">Chamada — quem participou hoje</div>
     <div class="chamada-grid" id="chamadaGrid"></div>
-    <div class="chamada-actions">
+    <div class="chamada-actions admin-only">
       <button id="markAllPresent">Marcar todos presentes</button>
       <button id="markAllAbsent">Marcar todos ausentes</button>
     </div>
@@ -249,7 +314,7 @@
       <input type="number" min="0" id="inpTotalGeral" placeholder="Ex.: 350">
     </div>
 
-    <button class="btn-save" id="saveDayBtn">Salvar dia</button>
+    <button class="btn-save admin-only" id="saveDayBtn">Salvar dia</button>
   </div>
 
   <div class="summary-row" id="summaryRow"></div>
@@ -302,6 +367,8 @@
 
 </main>
 
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -330,6 +397,8 @@ let participacaoMap = {};  // { [obraId]: boolean } — estado da chamada para c
 let currentDate = todayStr();
 let chartInstance = null;
 let presencaChartInstance = null;
+let isAdmin = false;
+let adminEmail = '';
 
 function todayStr(){
   const d = new Date();
@@ -415,11 +484,15 @@ function renderChamada(){
     const pill = document.createElement('div');
     pill.className = 'chamada-pill ' + (present ? 'present' : 'absent');
     pill.innerHTML = `<span class="nm">${escapeHtml(o.nome)}</span><span class="tag">${present ? 'Presente' : 'Ausente'}</span>`;
-    pill.addEventListener('click', ()=>{
-      participacaoMap[o.id] = !participacaoMap[o.id];
-      renderChamada();
-      renderFormRows();
-    });
+    if(isAdmin){
+      pill.addEventListener('click', ()=>{
+        participacaoMap[o.id] = !participacaoMap[o.id];
+        renderChamada();
+        renderFormRows();
+      });
+    } else {
+      pill.style.cursor = 'default';
+    }
     grid.appendChild(pill);
   });
 }
@@ -428,6 +501,8 @@ function renderTotalGeralInput(){
   const input = document.getElementById('inpTotalGeral');
   const val = totaisGerais[currentDate];
   input.value = (val === null || val === undefined) ? '' : val;
+  input.disabled = !isAdmin;
+  input.classList.toggle('viewer-readonly', !isAdmin);
 }
 
 // ---------- Linhas de lançamento ----------
@@ -436,6 +511,8 @@ function renderFormRows(){
   const wrap = document.getElementById('formRows');
   wrap.innerHTML = '';
   const dayData = entries[currentDate] || {};
+  const roCls = isAdmin ? '' : ' viewer-readonly';
+  const roAttr = isAdmin ? '' : 'disabled';
 
   obras.forEach(o=>{
     const rec = dayData[o.id] || {};
@@ -445,8 +522,8 @@ function renderFormRows(){
     row.dataset.id = o.id;
     row.innerHTML = `
       <div class="obra-name">${escapeHtml(o.nome)}${present ? '' : ' <span class="falta-tag">falta</span>'}</div>
-      <input type="number" min="0" class="inp-total" placeholder="–" value="${rec.total ?? ''}">
-      <input type="number" min="0" class="inp-30" placeholder="–" value="${rec.acima30 ?? ''}">
+      <input type="number" min="0" class="inp-total${roCls}" placeholder="–" value="${rec.total ?? ''}" ${roAttr}>
+      <input type="number" min="0" class="inp-30${roCls}" placeholder="–" value="${rec.acima30 ?? ''}" ${roAttr}>
     `;
     wrap.appendChild(row);
   });
@@ -455,6 +532,7 @@ function renderFormRows(){
 // ---------- Salvar dia ----------
 
 async function handleSaveDay(){
+  if(!isAdmin){ toast('Faça login como administrador para salvar.', true); return; }
   const btn = document.getElementById('saveDayBtn');
   btn.disabled = true;
   btn.textContent = 'Salvando…';
@@ -874,6 +952,7 @@ function setupEvents(){
   });
 
   document.getElementById('saveNamesBtn').addEventListener('click', async ()=>{
+    if(!isAdmin){ toast('Faça login como administrador.', true); return; }
     const saveBtn = document.getElementById('saveNamesBtn');
     saveBtn.disabled = true;
     const rows = document.querySelectorAll('#namesEditor input');
@@ -905,6 +984,88 @@ function setupEvents(){
   document.getElementById('presencaPeriodoSelect').addEventListener('change', renderPresencaChart);
 }
 
+// ---------- Login / modo visitante x administrador ----------
+
+function applyModeUI(){
+  document.body.classList.toggle('mode-viewer', !isAdmin);
+  document.body.classList.toggle('mode-admin', isAdmin);
+  const ind = document.getElementById('modeIndicator');
+  if(isAdmin){
+    ind.innerHTML = `🔐 Admin${adminEmail ? ': ' + escapeHtml(adminEmail) : ''}<br><button id="btnLogout">Sair</button>`;
+    const lb = document.getElementById('btnLogout');
+    if(lb) lb.addEventListener('click', handleLogout);
+  } else {
+    ind.innerHTML = `👁️ Modo visitante<br><button id="btnSwitchToAdmin">Entrar como admin</button>`;
+    const sb = document.getElementById('btnSwitchToAdmin');
+    if(sb) sb.addEventListener('click', ()=>{ document.getElementById('gateScreen').style.display = 'flex'; });
+  }
+}
+
+function hideGate(){
+  document.getElementById('gateScreen').style.display = 'none';
+  document.getElementById('appContent').style.display = 'block';
+}
+
+async function handleAdminLogin(){
+  const email = document.getElementById('admEmail').value.trim();
+  const password = document.getElementById('admPassword').value;
+  const errEl = document.getElementById('admLoginError');
+  errEl.textContent = '';
+  if(!email || !password){
+    errEl.textContent = 'Preencha e-mail e senha.';
+    return;
+  }
+  const btn = document.getElementById('btnAdmLogin');
+  btn.disabled = true; btn.textContent = 'Entrando…';
+  const { data, error } = await db.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = 'Entrar';
+  if(error){
+    errEl.textContent = 'E-mail ou senha incorretos.';
+    return;
+  }
+  isAdmin = true;
+  adminEmail = data.user?.email || email;
+  hideGate();
+  applyModeUI();
+  init();
+}
+
+async function handleLogout(){
+  await db.auth.signOut();
+  isAdmin = false;
+  adminEmail = '';
+  location.reload();
+}
+
+function setupGateEvents(){
+  document.getElementById('btnVisitante').addEventListener('click', ()=>{
+    isAdmin = false;
+    hideGate();
+    applyModeUI();
+    init();
+  });
+  document.getElementById('btnAdmToggle').addEventListener('click', ()=>{
+    document.getElementById('adminLoginBox').classList.toggle('open');
+  });
+  document.getElementById('btnAdmLogin').addEventListener('click', handleAdminLogin);
+  document.getElementById('admPassword').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter') handleAdminLogin();
+  });
+}
+
+async function checkExistingSession(){
+  const { data } = await db.auth.getSession();
+  if(data && data.session){
+    isAdmin = true;
+    adminEmail = data.session.user?.email || '';
+    hideGate();
+    applyModeUI();
+    init();
+    return true;
+  }
+  return false;
+}
+
 // ---------- Inicialização ----------
 
 async function init(){
@@ -932,7 +1093,8 @@ async function init(){
   renderHistoryTable();
 }
 
-init();
+setupGateEvents();
+checkExistingSession();
 </script>
 </body>
 </html>
