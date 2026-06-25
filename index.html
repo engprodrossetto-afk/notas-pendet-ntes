@@ -253,8 +253,12 @@
   body.mode-viewer .admin-only{display:none !important;}
   .viewer-readonly{background:#F7F7F9 !important;color:var(--muted) !important;cursor:default;}
 
-  .ranking-header{display:flex;align-items:center;justify-content:space-between;margin:18px 0 4px;padding-top:14px;border-top:1px solid var(--line);}
+  .ranking-header{display:flex;align-items:center;justify-content:space-between;margin:18px 0 4px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap;gap:8px;}
   .ranking-header h3{font-size:13px;font-weight:700;margin:0;text-transform:uppercase;letter-spacing:.04em;color:var(--navy);}
+  .ranking-period-controls{display:flex;gap:6px;flex-wrap:wrap;}
+  .ranking-period-controls input[type=date]{
+    padding:6px 8px;border:1px solid var(--line);border-radius:7px;font-size:12.5px;font-family:inherit;
+  }
   .ranking-row{
     display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);
   }
@@ -405,12 +409,16 @@
 
     <div class="ranking-header">
       <h3>Ranking — todas as obras</h3>
-      <select id="rankingPeriodoSelect">
-        <option value="7">Últimos 7 dias</option>
-        <option value="15">Últimos 15 dias</option>
-        <option value="30">Últimos 30 dias</option>
-        <option value="all" selected>Desde o início</option>
-      </select>
+      <div class="ranking-period-controls">
+        <select id="rankingPeriodoSelect">
+          <option value="calendario">📅 Escolher data</option>
+          <option value="all" selected>Desde o início</option>
+          <option value="7">Últimos 7 dias</option>
+          <option value="15">Últimos 15 dias</option>
+          <option value="30">Últimos 30 dias</option>
+        </select>
+        <input type="date" id="rankingCalendarDate" style="display:none;">
+      </div>
     </div>
     <p class="melhora-compare" id="rankingCompareLabel"></p>
     <div id="rankingList"></div>
@@ -795,6 +803,28 @@ function getEarliestRecord(obraId){
   return { date: dates[0], rec: entries[dates[0]][obraId] };
 }
 
+// Resolve o registro de comparação ("antes") para um período/obra.
+// Se não houver dado exatamente no período pedido, cai para o registro mais antigo
+// disponível (em vez de retornar vazio) — evita listas em branco quando o histórico é curto.
+function resolveAntesInfo(obraId, periodoVal, calendarioVal){
+  let antesInfo = null;
+  if(periodoVal === 'all'){
+    antesInfo = getEarliestRecord(obraId);
+  } else if(periodoVal === 'calendario'){
+    const cutoff = calendarioVal || addDaysStr(currentDate, -7);
+    antesInfo = getRecordAtOrBefore(obraId, cutoff);
+  } else {
+    const cutoff = addDaysStr(currentDate, -Number(periodoVal));
+    antesInfo = getRecordAtOrBefore(obraId, cutoff);
+  }
+  if(!antesInfo){
+    const earliest = getEarliestRecord(obraId);
+    if(earliest && earliest.date < currentDate) antesInfo = earliest;
+  }
+  if(antesInfo && antesInfo.date >= currentDate) antesInfo = null;
+  return antesInfo;
+}
+
 function renderMelhorias(){
   const periodoVal = document.getElementById('periodoSelect').value;
   const label = document.getElementById('melhoraCompareLabel');
@@ -808,14 +838,8 @@ function renderMelhorias(){
     const hoje = hojeObj[o.id];
     if(!hoje) return;
 
-    let antesInfo;
-    if(periodoVal === 'all'){
-      antesInfo = getEarliestRecord(o.id);
-    } else {
-      const cutoff = addDaysStr(currentDate, -Number(periodoVal));
-      antesInfo = getRecordAtOrBefore(o.id, cutoff);
-    }
-    if(!antesInfo || antesInfo.date >= currentDate) return; // sem histórico suficiente nesse período
+    const antesInfo = resolveAntesInfo(o.id, periodoVal, null);
+    if(!antesInfo) return; // sem histórico suficiente
 
     comparacoesValidas++;
     const antes = antesInfo.rec;
@@ -862,6 +886,7 @@ function renderMelhorias(){
 
 function renderRankingObras(){
   const periodoVal = document.getElementById('rankingPeriodoSelect').value;
+  const calendarioVal = document.getElementById('rankingCalendarDate').value;
   const label = document.getElementById('rankingCompareLabel');
   const wrap = document.getElementById('rankingList');
   const hojeObj = entries[currentDate] || {};
@@ -872,16 +897,7 @@ function renderRankingObras(){
     const hoje = hojeObj[o.id];
     const zerada = !!hoje && hoje.acima30 === 0;
 
-    let antesInfo = null;
-    if(hoje){
-      if(periodoVal === 'all'){
-        antesInfo = getEarliestRecord(o.id);
-      } else {
-        const cutoff = addDaysStr(currentDate, -Number(periodoVal));
-        antesInfo = getRecordAtOrBefore(o.id, cutoff);
-      }
-      if(antesInfo && antesInfo.date >= currentDate) antesInfo = null;
-    }
+    const antesInfo = hoje ? resolveAntesInfo(o.id, periodoVal, calendarioVal) : null;
 
     if(!hoje || !antesInfo){
       ranking.push({ nome:o.nome, semDados:true, score:Infinity, zerada });
@@ -898,7 +914,10 @@ function renderRankingObras(){
     ranking.push({ nome:o.nome, semDados:false, deltaTotal, delta30, score, desde: antesInfo.date, zerada });
   });
 
-  const periodoTexto = periodoVal === 'all' ? 'desde o início dos lançamentos' : `nos últimos ${periodoVal} dias`;
+  let periodoTexto;
+  if(periodoVal === 'all') periodoTexto = 'desde o início dos lançamentos';
+  else if(periodoVal === 'calendario') periodoTexto = calendarioVal ? `a partir de ${calendarioVal.split('-').reverse().join('/')}` : 'a partir da data escolhida';
+  else periodoTexto = `nos últimos ${periodoVal} dias`;
   label.textContent = `Comparando ${periodoTexto} (referência: hoje, ${currentDate.split('-').reverse().join('/')}) · ⭐ = sem nenhuma nota acima de 30 dias hoje`;
 
   ranking.sort((a,b)=>{
@@ -1201,7 +1220,18 @@ function setupEvents(){
 
   document.getElementById('chartFilter').addEventListener('change', renderChart);
   document.getElementById('periodoSelect').addEventListener('change', renderMelhorias);
-  document.getElementById('rankingPeriodoSelect').addEventListener('change', renderRankingObras);
+  document.getElementById('rankingPeriodoSelect').addEventListener('change', (e)=>{
+    const dateInput = document.getElementById('rankingCalendarDate');
+    if(e.target.value === 'calendario'){
+      dateInput.style.display = 'inline-block';
+      dateInput.max = currentDate;
+      if(!dateInput.value) dateInput.value = addDaysStr(currentDate, -7);
+    } else {
+      dateInput.style.display = 'none';
+    }
+    renderRankingObras();
+  });
+  document.getElementById('rankingCalendarDate').addEventListener('change', renderRankingObras);
   document.getElementById('presencaPeriodoSelect').addEventListener('change', renderPresencaChart);
 }
 
