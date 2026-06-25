@@ -1048,22 +1048,21 @@ function renderFaixasChart(){
   const ctx = document.getElementById('faixasChart').getContext('2d');
   if(faixasChartInstance) faixasChartInstance.destroy();
   faixasChartInstance = new Chart(ctx, {
-    type:'bar',
+    type:'line',
     data:{
       labels,
       datasets:[
-        { label:'0–2 dias', data:s02, backgroundColor:'#15803D' },
-        { label:'3–7 dias', data:s37, backgroundColor:'#B45309' },
-        { label:'8–30 dias', data:s830, backgroundColor:'#C2410C' },
-        { label:'Acima de 30 dias', data:s30, backgroundColor:'#B91C1C' }
+        { label:'0–2 dias', data:s02, borderColor:'#15803D', backgroundColor:'rgba(21,128,61,0.08)', tension:.25, fill:true, pointRadius:3 },
+        { label:'3–7 dias', data:s37, borderColor:'#B45309', backgroundColor:'rgba(180,83,9,0.08)', tension:.25, fill:true, pointRadius:3 },
+        { label:'8–30 dias', data:s830, borderColor:'#C2410C', backgroundColor:'rgba(194,65,12,0.08)', tension:.25, fill:true, pointRadius:3 },
+        { label:'Acima de 30 dias', data:s30, borderColor:'#B91C1C', backgroundColor:'rgba(185,28,28,0.08)', tension:.25, fill:true, pointRadius:3 }
       ]
     },
     options:{
       responsive:true,
       maintainAspectRatio:false,
       scales:{
-        x:{ stacked:true },
-        y:{ stacked:true, beginAtZero:true, ticks:{ precision:0 } }
+        y:{ beginAtZero:true, ticks:{ precision:0 } }
       },
       plugins:{ legend:{ position:'bottom', labels:{ font:{ size:11 } } } }
     }
