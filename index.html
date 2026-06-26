@@ -214,7 +214,7 @@
   .mini-chart-delta.melhor{color:var(--green);}
   .mini-chart-delta.pior{color:var(--red);}
   .mini-chart-delta.neutro{color:var(--muted);}
-  .mini-chart-canvas-wrap{position:relative;height:120px;margin:0 -6px;}
+  .mini-chart-canvas-wrap{position:relative;height:140px;margin:0 -6px;}
   @media (min-width: 640px){
     .obras-mini-grid{grid-template-columns:repeat(2,1fr);}
   }
@@ -901,7 +901,7 @@ function renderObrasDailyCharts(){
     if(!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, 120);
+    const gradient = ctx.createLinearGradient(0, 0, 0, 140);
     gradient.addColorStop(0, 'rgba(45,51,111,0.32)');
     gradient.addColorStop(1, 'rgba(45,51,111,0.02)');
 
@@ -915,10 +915,14 @@ function renderObrasDailyCharts(){
           borderColor:'#2D336F',
           backgroundColor: gradient,
           borderWidth: 2.5,
-          tension: 0.42,
+          borderDash: [6,4],
+          tension: 0.3,
           fill: true,
-          pointRadius: 0,
-          pointHoverRadius: 5,
+          pointRadius: 3,
+          pointBackgroundColor: '#fff',
+          pointBorderColor: '#2D336F',
+          pointBorderWidth: 2,
+          pointHoverRadius: 6,
           pointHoverBackgroundColor: '#2D336F',
           pointHoverBorderColor: '#fff',
           pointHoverBorderWidth: 2,
@@ -941,7 +945,7 @@ function renderObrasDailyCharts(){
           }
         },
         scales:{
-          x:{ display:false },
+          x:{ display:true, grid:{ display:false }, ticks:{ font:{ size:8.5 }, color:'#9CA3AF', maxRotation:0 } },
           y:{ display:false, beginAtZero:false }
         }
       }
