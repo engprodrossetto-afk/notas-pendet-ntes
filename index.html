@@ -201,10 +201,20 @@
     color:var(--navy);font-weight:600;font-size:13px;cursor:pointer;margin-top:4px;
   }
   .small-note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;}
-  .obras-mini-grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px;}
-  .mini-chart-box{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff;}
-  .mini-chart-title{font-size:12.5px;font-weight:700;color:var(--navy);margin-bottom:8px;}
-  .mini-chart-canvas-wrap{position:relative;height:160px;}
+  .obras-mini-grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:14px;}
+  .mini-chart-box{
+    border:1px solid var(--line);border-radius:14px;padding:16px 16px 8px;background:#fff;
+    box-shadow:0 2px 10px rgba(31,36,80,0.06);transition:box-shadow .2s;
+  }
+  .mini-chart-box:hover{box-shadow:0 6px 18px rgba(31,36,80,0.10);}
+  .mini-chart-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px;}
+  .mini-chart-title{font-size:12.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;}
+  .mini-chart-value{font-family:'JetBrains Mono',monospace;font-size:21px;font-weight:800;color:var(--navy);}
+  .mini-chart-delta{font-size:11px;font-weight:700;margin-bottom:6px;font-family:'JetBrains Mono',monospace;}
+  .mini-chart-delta.melhor{color:var(--green);}
+  .mini-chart-delta.pior{color:var(--red);}
+  .mini-chart-delta.neutro{color:var(--muted);}
+  .mini-chart-canvas-wrap{position:relative;height:120px;margin:0 -6px;}
   @media (min-width: 640px){
     .obras-mini-grid{grid-template-columns:repeat(2,1fr);}
   }
@@ -840,12 +850,44 @@ function renderObrasDailyCharts(){
     }
   });
 
-  grid.innerHTML = obras.map(o=>`
+  // calcula valor atual e delta de cada obra pro cabeçalho do card
+  const stats = {};
+  obras.forEach(o=>{
+    let current = null, delta = null, lastIdx = -1;
+    for(let i = dates.length - 1; i >= 0; i--){
+      const rec = entries[dates[i]][o.id];
+      if(rec && rec.total !== null && rec.total !== undefined){ current = rec.total; lastIdx = i; break; }
+    }
+    if(lastIdx >= 0){
+      for(let i = lastIdx - 1; i >= 0; i--){
+        const rec = entries[dates[i]][o.id];
+        if(rec && rec.total !== null && rec.total !== undefined){ delta = current - rec.total; break; }
+      }
+    }
+    stats[o.id] = { current, delta };
+  });
+
+  grid.innerHTML = obras.map(o=>{
+    const s = stats[o.id];
+    let deltaHtml = '';
+    if(s.delta !== null){
+      if(s.delta < 0) deltaHtml = `<div class="mini-chart-delta melhor">▼ ${Math.abs(s.delta)} desde o último lançamento</div>`;
+      else if(s.delta > 0) deltaHtml = `<div class="mini-chart-delta pior">▲ ${s.delta} desde o último lançamento</div>`;
+      else deltaHtml = `<div class="mini-chart-delta neutro">sem variação</div>`;
+    } else {
+      deltaHtml = `<div class="mini-chart-delta neutro">primeiro lançamento</div>`;
+    }
+    return `
     <div class="mini-chart-box">
-      <div class="mini-chart-title">${escapeHtml(o.nome)}</div>
+      <div class="mini-chart-header">
+        <span class="mini-chart-title">${escapeHtml(o.nome)}</span>
+        <span class="mini-chart-value">${s.current ?? '–'}</span>
+      </div>
+      ${deltaHtml}
       <div class="mini-chart-canvas-wrap"><canvas id="spark-${o.id}"></canvas></div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   if(typeof Chart === 'undefined') return;
 
@@ -858,20 +900,49 @@ function renderObrasDailyCharts(){
     const canvas = document.getElementById(`spark-${o.id}`);
     if(!canvas) return;
     const ctx = canvas.getContext('2d');
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 120);
+    gradient.addColorStop(0, 'rgba(45,51,111,0.32)');
+    gradient.addColorStop(1, 'rgba(45,51,111,0.02)');
+
     if(sparkChartInstances[o.id]) sparkChartInstances[o.id].destroy();
     sparkChartInstances[o.id] = new Chart(ctx, {
-      type:'bar',
+      type:'line',
       data:{
         labels,
-        datasets:[{ label:'Quantidade lançada', data, backgroundColor:'#2D336F', borderRadius:3 }]
+        datasets:[{
+          data,
+          borderColor:'#2D336F',
+          backgroundColor: gradient,
+          borderWidth: 2.5,
+          tension: 0.42,
+          fill: true,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: '#2D336F',
+          pointHoverBorderColor: '#fff',
+          pointHoverBorderWidth: 2,
+          spanGaps: true
+        }]
       },
       options:{
         responsive:true,
         maintainAspectRatio:false,
-        plugins:{ legend:{ display:false } },
+        interaction:{ mode:'index', intersect:false },
+        plugins:{
+          legend:{ display:false },
+          tooltip:{
+            displayColors:false,
+            backgroundColor:'#1F2450',
+            padding:8,
+            titleFont:{ size:10 },
+            bodyFont:{ size:11, weight:'bold' },
+            callbacks:{ label:(c)=> `${c.parsed.y ?? '–'} notas pendentes` }
+          }
+        },
         scales:{
-          x:{ ticks:{ font:{ size:9 } } },
-          y:{ beginAtZero:true, ticks:{ font:{ size:9 }, precision:0 } }
+          x:{ display:false },
+          y:{ display:false, beginAtZero:false }
         }
       }
     });
