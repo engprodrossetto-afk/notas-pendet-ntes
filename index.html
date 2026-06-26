@@ -201,16 +201,23 @@
     color:var(--navy);font-weight:600;font-size:13px;cursor:pointer;margin-top:4px;
   }
   .small-note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;}
-  .obras-mini-grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px;}
-  .mini-chart-box{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff;}
-  .mini-chart-title{font-size:12.5px;font-weight:700;color:var(--navy);margin-bottom:8px;}
-  .mini-chart-canvas-wrap{position:relative;height:200px;}
-  @media (min-width: 640px){
-    .obras-mini-grid{grid-template-columns:repeat(2,1fr);}
+  .spark-table{display:flex;flex-direction:column;margin-top:14px;}
+  .spark-row{padding:10px 0;border-bottom:1px solid var(--line);}
+  .spark-row:last-of-type{border-bottom:none;}
+  .spark-row-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px;}
+  .spark-nome{font-size:13.5px;font-weight:700;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .spark-row-bottom{display:flex;align-items:center;gap:10px;}
+  .spark-canvas-wrap{flex:1;height:34px;min-width:0;}
+  .spark-stat{display:flex;flex-direction:column;align-items:center;min-width:42px;flex-shrink:0;}
+  .spark-stat .v{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;display:flex;align-items:center;gap:3px;}
+  .spark-stat .l{font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.02em;}
+  .spark-delta{
+    font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;
+    padding:3px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0;
   }
-  @media (min-width: 1020px){
-    .obras-mini-grid{grid-template-columns:repeat(3,1fr);}
-  }
+  .spark-delta.melhor{background:var(--green-bg);color:var(--green);}
+  .spark-delta.pior{background:var(--red-bg);color:var(--red);}
+  .spark-delta.neutro{background:#F1F1F4;color:var(--muted);}
   .sync-badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:14px;}
   .sync-badge .dot2{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;}
   .sync-badge.offline .dot2{background:var(--red);}
@@ -378,9 +385,9 @@
   <div class="summary-row" id="summaryRow"></div>
 
   <div class="card">
-    <div class="card-title"><h2>Evolução por obra</h2></div>
-    <p class="small-note">Em cada mini-gráfico: total pendente (azul), acima de 30 dias (vermelho) e desempenho do dia — total de hoje menos o do lançamento anterior (laranja, eixo da direita). Linha laranja abaixo de zero = obra reduziu pendência naquele dia.</p>
-    <div id="obrasMiniGrid" class="obras-mini-grid"></div>
+    <div class="card-title"><h2>Performance por obra</h2></div>
+    <p class="small-note">Tendência do total pendente, valor atual, situação dos &gt;30 dias e variação desde o último lançamento. Ordenado da obra com mais notas acima de 30 dias para a com menos.</p>
+    <div id="sparkTable" class="spark-table"></div>
   </div>
 
   <div class="card">
@@ -468,7 +475,7 @@ let participacaoMap = {};  // { [obraId]: boolean } — estado da chamada para c
 let currentDate = todayStr();
 let chartInstance = null;
 let presencaChartInstance = null;
-let miniChartInstances = {};
+let sparkChartInstances = {};
 let isAdmin = false;
 let adminEmail = '';
 
@@ -687,7 +694,7 @@ async function handleSaveDay(){
 
   toast('Dia salvo ✓');
   renderSummary();
-  renderObrasMiniCharts();
+  renderSparkTable();
   renderRankingObras();
   renderPresencaChart();
   renderFaixasChart();
@@ -828,68 +835,94 @@ function resolveAntesInfo(obraId, periodoVal, calendarioVal){
   return antesInfo;
 }
 
-function renderObrasMiniCharts(){
-  const grid = document.getElementById('obrasMiniGrid');
+function renderSparkTable(){
+  const wrap = document.getElementById('sparkTable');
   const dates = Object.keys(entries).sort();
-  const labels = dates.map(d=> d.slice(8,10)+'/'+d.slice(5,7));
 
   // remove instâncias de obras que não existem mais
-  Object.keys(miniChartInstances).forEach(id=>{
+  Object.keys(sparkChartInstances).forEach(id=>{
     if(!obras.find(o=> o.id === id)){
-      miniChartInstances[id].destroy();
-      delete miniChartInstances[id];
+      sparkChartInstances[id].destroy();
+      delete sparkChartInstances[id];
     }
   });
 
-  grid.innerHTML = obras.map(o=>`
-    <div class="mini-chart-box">
-      <div class="mini-chart-title">${escapeHtml(o.nome)}</div>
-      <div class="mini-chart-canvas-wrap"><canvas id="mini-${o.id}"></canvas></div>
-    </div>
-  `).join('');
+  const rows = obras.map(o=>{
+    const totalSeries = dates.map(d=>{
+      const rec = entries[d][o.id];
+      return rec ? (rec.total ?? null) : null;
+    });
+
+    let currentTotal = null, currentAcima30 = null, lastIdx = -1;
+    for(let i = dates.length - 1; i >= 0; i--){
+      const rec = entries[dates[i]][o.id];
+      if(rec && rec.total !== null && rec.total !== undefined){
+        currentTotal = rec.total; currentAcima30 = rec.acima30; lastIdx = i; break;
+      }
+    }
+
+    let delta = null;
+    if(lastIdx >= 0){
+      for(let i = lastIdx - 1; i >= 0; i--){
+        const rec = entries[dates[i]][o.id];
+        if(rec && rec.total !== null && rec.total !== undefined){ delta = currentTotal - rec.total; break; }
+      }
+    }
+
+    return { obra:o, totalSeries, currentTotal, currentAcima30, delta };
+  });
+
+  // pior primeiro (mais notas acima de 30 dias no topo); sem dado vai para o fim
+  rows.sort((a,b)=>{
+    if(a.currentAcima30 === null || a.currentAcima30 === undefined) return 1;
+    if(b.currentAcima30 === null || b.currentAcima30 === undefined) return -1;
+    return b.currentAcima30 - a.currentAcima30;
+  });
+
+  wrap.innerHTML = rows.map(r=>{
+    const st = statusOf(r.currentAcima30);
+    let deltaHtml;
+    if(r.delta === null || r.delta === undefined) deltaHtml = `<span class="spark-delta neutro">– sem comparação</span>`;
+    else if(r.delta < 0) deltaHtml = `<span class="spark-delta melhor">▼ ${Math.abs(r.delta)}</span>`;
+    else if(r.delta > 0) deltaHtml = `<span class="spark-delta pior">▲ ${r.delta}</span>`;
+    else deltaHtml = `<span class="spark-delta neutro">= 0</span>`;
+    return `
+      <div class="spark-row">
+        <div class="spark-row-top">
+          <span class="spark-nome">${escapeHtml(r.obra.nome)}</span>
+          ${deltaHtml}
+        </div>
+        <div class="spark-row-bottom">
+          <div class="spark-canvas-wrap"><canvas id="spark-${r.obra.id}"></canvas></div>
+          <div class="spark-stat"><span class="v">${r.currentTotal ?? '–'}</span><span class="l">Total</span></div>
+          <div class="spark-stat"><span class="v"><span class="dot ${st}"></span>${r.currentAcima30 ?? '–'}</span><span class="l">&gt;30d</span></div>
+        </div>
+      </div>
+    `;
+  }).join('');
 
   if(typeof Chart === 'undefined') return;
 
-  obras.forEach(o=>{
-    const totalSeries = [];
-    const acima30Series = [];
-    const desempenhoSeries = [];
-    let lastTotal = null;
-
-    dates.forEach(date=>{
-      const rec = entries[date][o.id];
-      const t = rec ? (rec.total ?? null) : null;
-      const a = rec ? (rec.acima30 ?? null) : null;
-      totalSeries.push(t);
-      acima30Series.push(a);
-      desempenhoSeries.push((t !== null && lastTotal !== null) ? (t - lastTotal) : null);
-      if(t !== null) lastTotal = t;
-    });
-
-    const canvas = document.getElementById(`mini-${o.id}`);
+  rows.forEach(r=>{
+    const canvas = document.getElementById(`spark-${r.obra.id}`);
     if(!canvas) return;
     const ctx = canvas.getContext('2d');
-    if(miniChartInstances[o.id]) miniChartInstances[o.id].destroy();
-    miniChartInstances[o.id] = new Chart(ctx, {
+    if(sparkChartInstances[r.obra.id]) sparkChartInstances[r.obra.id].destroy();
+    sparkChartInstances[r.obra.id] = new Chart(ctx, {
       type:'line',
       data:{
-        labels,
-        datasets:[
-          { label:'Total', data:totalSeries, borderColor:'#2D336F', backgroundColor:'rgba(45,51,111,0.08)', tension:.25, fill:true, pointRadius:2, yAxisID:'y', spanGaps:true },
-          { label:'>30 dias', data:acima30Series, borderColor:'#B91C1C', backgroundColor:'rgba(185,28,28,0.06)', tension:.25, fill:true, pointRadius:2, yAxisID:'y', spanGaps:true },
-          { label:'Desempenho (Δ dia)', data:desempenhoSeries, borderColor:'#B45309', borderDash:[4,3], tension:.2, fill:false, pointRadius:2, yAxisID:'y1', spanGaps:true }
-        ]
+        labels: dates,
+        datasets:[{
+          data: r.totalSeries, borderColor:'#2D336F', borderWidth:1.5,
+          pointRadius:0, tension:.3, fill:false, spanGaps:true
+        }]
       },
       options:{
         responsive:true,
         maintainAspectRatio:false,
-        interaction:{ mode:'index', intersect:false },
-        plugins:{ legend:{ position:'bottom', labels:{ font:{ size:9 }, boxWidth:8 } } },
-        scales:{
-          x:{ ticks:{ font:{ size:8 } } },
-          y:{ beginAtZero:true, ticks:{ font:{ size:9 }, precision:0 } },
-          y1:{ position:'right', grid:{ drawOnChartArea:false }, ticks:{ font:{ size:9 } } }
-        }
+        plugins:{ legend:{ display:false }, tooltip:{ enabled:false } },
+        scales:{ x:{ display:false }, y:{ display:false } },
+        elements:{ point:{ radius:0 } }
       }
     });
   });
@@ -1122,7 +1155,7 @@ function renderHistoryTable(){
       renderFormRows();
       renderTotalGeralInput();
       renderSummary();
-      renderObrasMiniCharts();
+      renderSparkTable();
       renderRankingObras();
       renderPresencaChart();
   renderFaixasChart();
@@ -1145,7 +1178,7 @@ async function reloadObrasAndRefresh(){
   loadParticipacaoForDate(currentDate);
   renderChamada();
   renderFormRows();
-  renderObrasMiniCharts();
+  renderSparkTable();
   renderChartFilterOptions();
   renderChart();
   renderHistoryTable();
@@ -1158,7 +1191,7 @@ function setupEvents(){
   document.getElementById('datePicker').addEventListener('change', (e)=>{
     currentDate = e.target.value;
     loadParticipacaoForDate(currentDate);
-    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasMiniCharts(); renderRankingObras(); renderPresencaChart();
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderSparkTable(); renderRankingObras(); renderPresencaChart();
   renderFaixasChart();
   });
   document.getElementById('prevDay').addEventListener('click', ()=>{
@@ -1166,7 +1199,7 @@ function setupEvents(){
     currentDate = d.toISOString().slice(0,10);
     document.getElementById('datePicker').value = currentDate;
     loadParticipacaoForDate(currentDate);
-    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasMiniCharts(); renderRankingObras(); renderPresencaChart();
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderSparkTable(); renderRankingObras(); renderPresencaChart();
   renderFaixasChart();
   });
   document.getElementById('nextDay').addEventListener('click', ()=>{
@@ -1174,7 +1207,7 @@ function setupEvents(){
     currentDate = d.toISOString().slice(0,10);
     document.getElementById('datePicker').value = currentDate;
     loadParticipacaoForDate(currentDate);
-    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasMiniCharts(); renderRankingObras(); renderPresencaChart();
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderSparkTable(); renderRankingObras(); renderPresencaChart();
   renderFaixasChart();
   });
   document.getElementById('saveDayBtn').addEventListener('click', handleSaveDay);
@@ -1349,7 +1382,7 @@ async function init(){
   renderFormRows();
   renderTotalGeralInput();
   renderSummary();
-  renderObrasMiniCharts();
+  renderSparkTable();
   renderRankingObras();
   renderPresencaChart();
   renderFaixasChart();
