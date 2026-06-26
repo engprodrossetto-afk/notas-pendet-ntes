@@ -368,17 +368,9 @@
   <div class="summary-row" id="summaryRow"></div>
 
   <div class="card">
-    <div class="card-title">
-      <h2>Destaques — obras em melhora</h2>
-      <select id="periodoSelect">
-        <option value="7">Últimos 7 dias</option>
-        <option value="15">Últimos 15 dias</option>
-        <option value="30">Últimos 30 dias</option>
-        <option value="all">Desde o início</option>
-      </select>
-    </div>
-    <p class="melhora-compare" id="melhoraCompareLabel"></p>
-    <div id="melhoraList"></div>
+    <div class="card-title"><h2>Evolução dos dados gerais — por obra</h2></div>
+    <div class="chart-box" id="obrasChartBox"><canvas id="obrasChart"></canvas></div>
+    <p class="small-note">Cada linha é uma obra — total pendente lançado ao longo do tempo. Quem está sempre mais baixo tem melhor performance.</p>
   </div>
 
   <div class="card">
@@ -466,6 +458,7 @@ let participacaoMap = {};  // { [obraId]: boolean } — estado da chamada para c
 let currentDate = todayStr();
 let chartInstance = null;
 let presencaChartInstance = null;
+let obrasChartInstance = null;
 let isAdmin = false;
 let adminEmail = '';
 
@@ -684,7 +677,7 @@ async function handleSaveDay(){
 
   toast('Dia salvo ✓');
   renderSummary();
-  renderMelhorias();
+  renderObrasChart();
   renderRankingObras();
   renderPresencaChart();
   renderFaixasChart();
@@ -825,61 +818,48 @@ function resolveAntesInfo(obraId, periodoVal, calendarioVal){
   return antesInfo;
 }
 
-function renderMelhorias(){
-  const periodoVal = document.getElementById('periodoSelect').value;
-  const label = document.getElementById('melhoraCompareLabel');
-  const wrap = document.getElementById('melhoraList');
-  const hojeObj = entries[currentDate] || {};
+function renderObrasChart(){
+  const dates = Object.keys(entries).sort();
+  const labels = dates.map(d=> d.slice(8,10)+'/'+d.slice(5,7));
 
-  const melhorias = [];
-  let comparacoesValidas = 0;
+  const palette = obras.map((_,i)=> `hsl(${Math.round(i * 360 / Math.max(obras.length,1))}, 62%, 45%)`);
 
-  obras.forEach(o=>{
-    const hoje = hojeObj[o.id];
-    if(!hoje) return;
+  const datasets = obras.map((o,i)=>{
+    const data = dates.map(date=>{
+      const rec = entries[date][o.id];
+      return rec ? (rec.total ?? null) : null;
+    });
+    return {
+      label: o.nome,
+      data,
+      borderColor: palette[i],
+      backgroundColor: 'transparent',
+      tension: .2,
+      pointRadius: 2,
+      fill: false,
+      spanGaps: true
+    };
+  });
 
-    const antesInfo = resolveAntesInfo(o.id, periodoVal, null);
-    if(!antesInfo) return; // sem histórico suficiente
+  if(typeof Chart === 'undefined'){
+    document.getElementById('obrasChartBox').style.height = 'auto';
+    document.getElementById('obrasChart').style.display = 'none';
+    return;
+  }
 
-    comparacoesValidas++;
-    const antes = antesInfo.rec;
-    const hT = hoje.total ?? null, aT = antes.total ?? null;
-    const h30 = hoje.acima30 ?? null, a30 = antes.acima30 ?? null;
-    const deltaTotal = (hT !== null && aT !== null) ? hT - aT : null;
-    const delta30 = (h30 !== null && a30 !== null) ? h30 - a30 : null;
-    const melhorouTotal = deltaTotal !== null && deltaTotal < 0;
-    const melhorou30 = delta30 !== null && delta30 < 0;
-    if(melhorouTotal || melhorou30){
-      melhorias.push({ nome:o.nome, deltaTotal, delta30, melhorouTotal, melhorou30, desde: antesInfo.date });
+  document.getElementById('obrasChartBox').style.height = '340px';
+  const ctx = document.getElementById('obrasChart').getContext('2d');
+  if(obrasChartInstance) obrasChartInstance.destroy();
+  obrasChartInstance = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{ legend:{ position:'bottom', labels:{ font:{ size:10.5 }, boxWidth:12 } } },
+      scales:{ y:{ beginAtZero:true, ticks:{ precision:0 } } }
     }
   });
-
-  if(comparacoesValidas === 0){
-    label.textContent = '';
-    wrap.innerHTML = '<p class="empty-hint">Ainda não há dados antigos suficientes nesse período para comparar.</p>';
-    return;
-  }
-
-  const periodoTexto = periodoVal === 'all' ? 'desde o início dos lançamentos' : `nos últimos ${periodoVal} dias`;
-  label.textContent = `Comparando ${periodoTexto} (referência: hoje, ${currentDate.split('-').reverse().join('/')})`;
-
-  if(melhorias.length === 0){
-    wrap.innerHTML = '<p class="empty-hint">Nenhuma obra reduziu pendências nesse período.</p>';
-    return;
-  }
-
-  melhorias.sort((a,b)=>{
-    const score = x => (x.melhorou30 ? x.delta30 : 0) + (x.melhorouTotal ? x.deltaTotal : 0);
-    return score(a) - score(b);
-  });
-
-  wrap.innerHTML = melhorias.map(m=>{
-    const tags = [];
-    if(m.melhorou30) tags.push(`<span class="melhora-tag">▼ ${Math.abs(m.delta30)} acima de 30d</span>`);
-    if(m.melhorouTotal) tags.push(`<span class="melhora-tag">▼ ${Math.abs(m.deltaTotal)} total</span>`);
-    const [dy,dm,dd] = m.desde.split('-');
-    return `<div class="melhora-row"><span class="nm">${escapeHtml(m.nome)}<br><span style="font-size:10px;color:var(--muted);font-weight:400;">desde ${dd}/${dm}/${dy}</span></span><div class="deltas">${tags.join('')}</div></div>`;
-  }).join('');
 }
 
 // ---------- Ranking de todas as obras ----------
@@ -1109,7 +1089,7 @@ function renderHistoryTable(){
       renderFormRows();
       renderTotalGeralInput();
       renderSummary();
-      renderMelhorias();
+      renderObrasChart();
       renderRankingObras();
       renderPresencaChart();
   renderFaixasChart();
@@ -1144,7 +1124,7 @@ function setupEvents(){
   document.getElementById('datePicker').addEventListener('change', (e)=>{
     currentDate = e.target.value;
     loadParticipacaoForDate(currentDate);
-    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderMelhorias(); renderRankingObras(); renderPresencaChart();
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasChart(); renderRankingObras(); renderPresencaChart();
   renderFaixasChart();
   });
   document.getElementById('prevDay').addEventListener('click', ()=>{
@@ -1152,7 +1132,7 @@ function setupEvents(){
     currentDate = d.toISOString().slice(0,10);
     document.getElementById('datePicker').value = currentDate;
     loadParticipacaoForDate(currentDate);
-    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderMelhorias(); renderRankingObras(); renderPresencaChart();
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasChart(); renderRankingObras(); renderPresencaChart();
   renderFaixasChart();
   });
   document.getElementById('nextDay').addEventListener('click', ()=>{
@@ -1160,7 +1140,7 @@ function setupEvents(){
     currentDate = d.toISOString().slice(0,10);
     document.getElementById('datePicker').value = currentDate;
     loadParticipacaoForDate(currentDate);
-    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderMelhorias(); renderRankingObras(); renderPresencaChart();
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasChart(); renderRankingObras(); renderPresencaChart();
   renderFaixasChart();
   });
   document.getElementById('saveDayBtn').addEventListener('click', handleSaveDay);
@@ -1218,7 +1198,6 @@ function setupEvents(){
   });
 
   document.getElementById('chartFilter').addEventListener('change', renderChart);
-  document.getElementById('periodoSelect').addEventListener('change', renderMelhorias);
   document.getElementById('rankingPeriodoSelect').addEventListener('change', (e)=>{
     const dateInput = document.getElementById('rankingCalendarDate');
     if(e.target.value === 'calendario'){
@@ -1336,7 +1315,7 @@ async function init(){
   renderFormRows();
   renderTotalGeralInput();
   renderSummary();
-  renderMelhorias();
+  renderObrasChart();
   renderRankingObras();
   renderPresencaChart();
   renderFaixasChart();
