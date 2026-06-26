@@ -201,6 +201,16 @@
     color:var(--navy);font-weight:600;font-size:13px;cursor:pointer;margin-top:4px;
   }
   .small-note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;}
+  .obras-mini-grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px;}
+  .mini-chart-box{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff;}
+  .mini-chart-title{font-size:12.5px;font-weight:700;color:var(--navy);margin-bottom:8px;}
+  .mini-chart-canvas-wrap{position:relative;height:200px;}
+  @media (min-width: 640px){
+    .obras-mini-grid{grid-template-columns:repeat(2,1fr);}
+  }
+  @media (min-width: 1020px){
+    .obras-mini-grid{grid-template-columns:repeat(3,1fr);}
+  }
   .sync-badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:14px;}
   .sync-badge .dot2{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;}
   .sync-badge.offline .dot2{background:var(--red);}
@@ -368,12 +378,9 @@
   <div class="summary-row" id="summaryRow"></div>
 
   <div class="card">
-    <div class="card-title">
-      <h2>Performance — % acima de 30 dias</h2>
-      <select id="obrasChartFilter"></select>
-    </div>
-    <div class="chart-box" id="obrasChartBox"><canvas id="obrasChart"></canvas></div>
-    <p class="small-note" id="obrasChartNote"></p>
+    <div class="card-title"><h2>Evolução por obra</h2></div>
+    <p class="small-note">Em cada mini-gráfico: total pendente (azul), acima de 30 dias (vermelho) e desempenho do dia — total de hoje menos o do lançamento anterior (laranja, eixo da direita). Linha laranja abaixo de zero = obra reduziu pendência naquele dia.</p>
+    <div id="obrasMiniGrid" class="obras-mini-grid"></div>
   </div>
 
   <div class="card">
@@ -461,7 +468,7 @@ let participacaoMap = {};  // { [obraId]: boolean } — estado da chamada para c
 let currentDate = todayStr();
 let chartInstance = null;
 let presencaChartInstance = null;
-let obrasChartInstance = null;
+let miniChartInstances = {};
 let isAdmin = false;
 let adminEmail = '';
 
@@ -680,7 +687,7 @@ async function handleSaveDay(){
 
   toast('Dia salvo ✓');
   renderSummary();
-  renderObrasChart();
+  renderObrasMiniCharts();
   renderRankingObras();
   renderPresencaChart();
   renderFaixasChart();
@@ -821,80 +828,70 @@ function resolveAntesInfo(obraId, periodoVal, calendarioVal){
   return antesInfo;
 }
 
-function renderObrasChartFilterOptions(){
-  const sel = document.getElementById('obrasChartFilter');
-  const prev = sel.value;
-  sel.innerHTML = `<option value="-1">🏢 Geral (média da empresa)</option>` +
-    obras.map(o=>`<option value="${o.id}">${escapeHtml(o.nome)}</option>`).join('');
-  if(prev) sel.value = prev;
-}
-
-function pctAcima30(rec){
-  if(!rec || !rec.total) return null; // sem total informado, ou total zero -> sem percentual
-  if(rec.acima30 === null || rec.acima30 === undefined) return null;
-  return Math.round((rec.acima30 / rec.total) * 1000) / 10; // 1 casa decimal
-}
-
-function renderObrasChart(){
+function renderObrasMiniCharts(){
+  const grid = document.getElementById('obrasMiniGrid');
   const dates = Object.keys(entries).sort();
   const labels = dates.map(d=> d.slice(8,10)+'/'+d.slice(5,7));
-  const filterId = document.getElementById('obrasChartFilter').value || '-1';
-  const noteEl = document.getElementById('obrasChartNote');
 
-  // série geral (média ponderada da empresa) — sempre calculada, usada como referência
-  const geralSeries = dates.map(date=>{
-    const dayObj = entries[date];
-    let t = 0, a = 0;
-    Object.values(dayObj).forEach(rec=>{ t += rec.total||0; a += rec.acima30||0; });
-    return t > 0 ? Math.round((a/t)*1000)/10 : null;
+  // remove instâncias de obras que não existem mais
+  Object.keys(miniChartInstances).forEach(id=>{
+    if(!obras.find(o=> o.id === id)){
+      miniChartInstances[id].destroy();
+      delete miniChartInstances[id];
+    }
   });
 
-  const datasets = [];
+  grid.innerHTML = obras.map(o=>`
+    <div class="mini-chart-box">
+      <div class="mini-chart-title">${escapeHtml(o.nome)}</div>
+      <div class="mini-chart-canvas-wrap"><canvas id="mini-${o.id}"></canvas></div>
+    </div>
+  `).join('');
 
-  if(filterId === '-1'){
-    datasets.push({
-      label: 'Empresa (geral)', data: geralSeries,
-      borderColor: '#B91C1C', backgroundColor: 'rgba(185,28,28,0.08)',
-      tension:.25, fill:true, pointRadius:3, spanGaps:true
-    });
-    noteEl.textContent = '% de notas pendentes que já passaram de 30 dias, considerando todas as obras juntas.';
-  } else {
-    const obra = obras.find(o=> o.id === filterId);
-    const obraSeries = dates.map(date=> pctAcima30(entries[date][filterId]));
-    datasets.push({
-      label: obra ? obra.nome : 'Obra', data: obraSeries,
-      borderColor: '#2D336F', backgroundColor: 'rgba(45,51,111,0.10)',
-      tension:.25, fill:true, pointRadius:3, spanGaps:true
-    });
-    datasets.push({
-      label: 'Média da empresa', data: geralSeries,
-      borderColor: '#9CA3AF', backgroundColor: 'transparent',
-      borderDash:[5,4], tension:.25, fill:false, pointRadius:0, spanGaps:true
-    });
-    noteEl.textContent = `Linha cheia = ${obra ? obra.nome : 'obra'}. Linha pontilhada cinza = média da empresa, pra comparar.`;
-  }
+  if(typeof Chart === 'undefined') return;
 
-  if(typeof Chart === 'undefined'){
-    document.getElementById('obrasChartBox').style.height = 'auto';
-    document.getElementById('obrasChart').style.display = 'none';
-    return;
-  }
+  obras.forEach(o=>{
+    const totalSeries = [];
+    const acima30Series = [];
+    const desempenhoSeries = [];
+    let lastTotal = null;
 
-  document.getElementById('obrasChartBox').style.height = '340px';
-  const ctx = document.getElementById('obrasChart').getContext('2d');
-  if(obrasChartInstance) obrasChartInstance.destroy();
-  obrasChartInstance = new Chart(ctx, {
-    type:'line',
-    data:{ labels, datasets },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{
-        legend:{ position:'bottom', labels:{ font:{ size:11 } } },
-        tooltip:{ callbacks:{ label:(ctx)=> `${ctx.dataset.label}: ${ctx.parsed.y ?? '–'}%` } }
+    dates.forEach(date=>{
+      const rec = entries[date][o.id];
+      const t = rec ? (rec.total ?? null) : null;
+      const a = rec ? (rec.acima30 ?? null) : null;
+      totalSeries.push(t);
+      acima30Series.push(a);
+      desempenhoSeries.push((t !== null && lastTotal !== null) ? (t - lastTotal) : null);
+      if(t !== null) lastTotal = t;
+    });
+
+    const canvas = document.getElementById(`mini-${o.id}`);
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if(miniChartInstances[o.id]) miniChartInstances[o.id].destroy();
+    miniChartInstances[o.id] = new Chart(ctx, {
+      type:'line',
+      data:{
+        labels,
+        datasets:[
+          { label:'Total', data:totalSeries, borderColor:'#2D336F', backgroundColor:'rgba(45,51,111,0.08)', tension:.25, fill:true, pointRadius:2, yAxisID:'y', spanGaps:true },
+          { label:'>30 dias', data:acima30Series, borderColor:'#B91C1C', backgroundColor:'rgba(185,28,28,0.06)', tension:.25, fill:true, pointRadius:2, yAxisID:'y', spanGaps:true },
+          { label:'Desempenho (Δ dia)', data:desempenhoSeries, borderColor:'#B45309', borderDash:[4,3], tension:.2, fill:false, pointRadius:2, yAxisID:'y1', spanGaps:true }
+        ]
       },
-      scales:{ y:{ beginAtZero:true, max:100, ticks:{ callback:(v)=> v+'%' } } }
-    }
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        interaction:{ mode:'index', intersect:false },
+        plugins:{ legend:{ position:'bottom', labels:{ font:{ size:9 }, boxWidth:8 } } },
+        scales:{
+          x:{ ticks:{ font:{ size:8 } } },
+          y:{ beginAtZero:true, ticks:{ font:{ size:9 }, precision:0 } },
+          y1:{ position:'right', grid:{ drawOnChartArea:false }, ticks:{ font:{ size:9 } } }
+        }
+      }
+    });
   });
 }
 
@@ -1125,7 +1122,7 @@ function renderHistoryTable(){
       renderFormRows();
       renderTotalGeralInput();
       renderSummary();
-      renderObrasChart();
+      renderObrasMiniCharts();
       renderRankingObras();
       renderPresencaChart();
   renderFaixasChart();
@@ -1148,8 +1145,7 @@ async function reloadObrasAndRefresh(){
   loadParticipacaoForDate(currentDate);
   renderChamada();
   renderFormRows();
-  renderObrasChartFilterOptions();
-  renderObrasChart();
+  renderObrasMiniCharts();
   renderChartFilterOptions();
   renderChart();
   renderHistoryTable();
@@ -1162,7 +1158,7 @@ function setupEvents(){
   document.getElementById('datePicker').addEventListener('change', (e)=>{
     currentDate = e.target.value;
     loadParticipacaoForDate(currentDate);
-    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasChart(); renderRankingObras(); renderPresencaChart();
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasMiniCharts(); renderRankingObras(); renderPresencaChart();
   renderFaixasChart();
   });
   document.getElementById('prevDay').addEventListener('click', ()=>{
@@ -1170,7 +1166,7 @@ function setupEvents(){
     currentDate = d.toISOString().slice(0,10);
     document.getElementById('datePicker').value = currentDate;
     loadParticipacaoForDate(currentDate);
-    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasChart(); renderRankingObras(); renderPresencaChart();
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasMiniCharts(); renderRankingObras(); renderPresencaChart();
   renderFaixasChart();
   });
   document.getElementById('nextDay').addEventListener('click', ()=>{
@@ -1178,7 +1174,7 @@ function setupEvents(){
     currentDate = d.toISOString().slice(0,10);
     document.getElementById('datePicker').value = currentDate;
     loadParticipacaoForDate(currentDate);
-    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasChart(); renderRankingObras(); renderPresencaChart();
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasMiniCharts(); renderRankingObras(); renderPresencaChart();
   renderFaixasChart();
   });
   document.getElementById('saveDayBtn').addEventListener('click', handleSaveDay);
@@ -1236,7 +1232,6 @@ function setupEvents(){
   });
 
   document.getElementById('chartFilter').addEventListener('change', renderChart);
-  document.getElementById('obrasChartFilter').addEventListener('change', renderObrasChart);
   document.getElementById('rankingPeriodoSelect').addEventListener('change', (e)=>{
     const dateInput = document.getElementById('rankingCalendarDate');
     if(e.target.value === 'calendario'){
@@ -1354,8 +1349,7 @@ async function init(){
   renderFormRows();
   renderTotalGeralInput();
   renderSummary();
-  renderObrasChartFilterOptions();
-  renderObrasChart();
+  renderObrasMiniCharts();
   renderRankingObras();
   renderPresencaChart();
   renderFaixasChart();
