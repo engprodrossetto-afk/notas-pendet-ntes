@@ -201,23 +201,16 @@
     color:var(--navy);font-weight:600;font-size:13px;cursor:pointer;margin-top:4px;
   }
   .small-note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5;}
-  .spark-table{display:flex;flex-direction:column;margin-top:14px;}
-  .spark-row{padding:10px 0;border-bottom:1px solid var(--line);}
-  .spark-row:last-of-type{border-bottom:none;}
-  .spark-row-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px;}
-  .spark-nome{font-size:13.5px;font-weight:700;color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .spark-row-bottom{display:flex;align-items:center;gap:10px;}
-  .spark-canvas-wrap{flex:1;height:34px;min-width:0;}
-  .spark-stat{display:flex;flex-direction:column;align-items:center;min-width:42px;flex-shrink:0;}
-  .spark-stat .v{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;display:flex;align-items:center;gap:3px;}
-  .spark-stat .l{font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.02em;}
-  .spark-delta{
-    font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;
-    padding:3px 8px;border-radius:20px;white-space:nowrap;flex-shrink:0;
+  .obras-mini-grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px;}
+  .mini-chart-box{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff;}
+  .mini-chart-title{font-size:12.5px;font-weight:700;color:var(--navy);margin-bottom:8px;}
+  .mini-chart-canvas-wrap{position:relative;height:160px;}
+  @media (min-width: 640px){
+    .obras-mini-grid{grid-template-columns:repeat(2,1fr);}
   }
-  .spark-delta.melhor{background:var(--green-bg);color:var(--green);}
-  .spark-delta.pior{background:var(--red-bg);color:var(--red);}
-  .spark-delta.neutro{background:#F1F1F4;color:var(--muted);}
+  @media (min-width: 1020px){
+    .obras-mini-grid{grid-template-columns:repeat(3,1fr);}
+  }
   .sync-badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-bottom:14px;}
   .sync-badge .dot2{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;}
   .sync-badge.offline .dot2{background:var(--red);}
@@ -385,9 +378,8 @@
   <div class="summary-row" id="summaryRow"></div>
 
   <div class="card">
-    <div class="card-title"><h2>Performance por obra</h2></div>
-    <p class="small-note">Tendência do total pendente, valor atual, situação dos &gt;30 dias e variação desde o último lançamento. Ordenado da obra com mais notas acima de 30 dias para a com menos.</p>
-    <div id="sparkTable" class="spark-table"></div>
+    <div class="card-title"><h2>Quantidade lançada por dia — por obra</h2></div>
+    <div id="obrasDailyGrid" class="obras-mini-grid"></div>
   </div>
 
   <div class="card">
@@ -694,7 +686,7 @@ async function handleSaveDay(){
 
   toast('Dia salvo ✓');
   renderSummary();
-  renderSparkTable();
+  renderObrasDailyCharts();
   renderRankingObras();
   renderPresencaChart();
   renderFaixasChart();
@@ -835,9 +827,10 @@ function resolveAntesInfo(obraId, periodoVal, calendarioVal){
   return antesInfo;
 }
 
-function renderSparkTable(){
-  const wrap = document.getElementById('sparkTable');
+function renderObrasDailyCharts(){
+  const grid = document.getElementById('obrasDailyGrid');
   const dates = Object.keys(entries).sort();
+  const labels = dates.map(d=> d.slice(8,10)+'/'+d.slice(5,7));
 
   // remove instâncias de obras que não existem mais
   Object.keys(sparkChartInstances).forEach(id=>{
@@ -847,82 +840,39 @@ function renderSparkTable(){
     }
   });
 
-  const rows = obras.map(o=>{
-    const totalSeries = dates.map(d=>{
+  grid.innerHTML = obras.map(o=>`
+    <div class="mini-chart-box">
+      <div class="mini-chart-title">${escapeHtml(o.nome)}</div>
+      <div class="mini-chart-canvas-wrap"><canvas id="spark-${o.id}"></canvas></div>
+    </div>
+  `).join('');
+
+  if(typeof Chart === 'undefined') return;
+
+  obras.forEach(o=>{
+    const data = dates.map(d=>{
       const rec = entries[d][o.id];
       return rec ? (rec.total ?? null) : null;
     });
 
-    let currentTotal = null, currentAcima30 = null, lastIdx = -1;
-    for(let i = dates.length - 1; i >= 0; i--){
-      const rec = entries[dates[i]][o.id];
-      if(rec && rec.total !== null && rec.total !== undefined){
-        currentTotal = rec.total; currentAcima30 = rec.acima30; lastIdx = i; break;
-      }
-    }
-
-    let delta = null;
-    if(lastIdx >= 0){
-      for(let i = lastIdx - 1; i >= 0; i--){
-        const rec = entries[dates[i]][o.id];
-        if(rec && rec.total !== null && rec.total !== undefined){ delta = currentTotal - rec.total; break; }
-      }
-    }
-
-    return { obra:o, totalSeries, currentTotal, currentAcima30, delta };
-  });
-
-  // pior primeiro (mais notas acima de 30 dias no topo); sem dado vai para o fim
-  rows.sort((a,b)=>{
-    if(a.currentAcima30 === null || a.currentAcima30 === undefined) return 1;
-    if(b.currentAcima30 === null || b.currentAcima30 === undefined) return -1;
-    return b.currentAcima30 - a.currentAcima30;
-  });
-
-  wrap.innerHTML = rows.map(r=>{
-    const st = statusOf(r.currentAcima30);
-    let deltaHtml;
-    if(r.delta === null || r.delta === undefined) deltaHtml = `<span class="spark-delta neutro">– sem comparação</span>`;
-    else if(r.delta < 0) deltaHtml = `<span class="spark-delta melhor">▼ ${Math.abs(r.delta)}</span>`;
-    else if(r.delta > 0) deltaHtml = `<span class="spark-delta pior">▲ ${r.delta}</span>`;
-    else deltaHtml = `<span class="spark-delta neutro">= 0</span>`;
-    return `
-      <div class="spark-row">
-        <div class="spark-row-top">
-          <span class="spark-nome">${escapeHtml(r.obra.nome)}</span>
-          ${deltaHtml}
-        </div>
-        <div class="spark-row-bottom">
-          <div class="spark-canvas-wrap"><canvas id="spark-${r.obra.id}"></canvas></div>
-          <div class="spark-stat"><span class="v">${r.currentTotal ?? '–'}</span><span class="l">Total</span></div>
-          <div class="spark-stat"><span class="v"><span class="dot ${st}"></span>${r.currentAcima30 ?? '–'}</span><span class="l">&gt;30d</span></div>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  if(typeof Chart === 'undefined') return;
-
-  rows.forEach(r=>{
-    const canvas = document.getElementById(`spark-${r.obra.id}`);
+    const canvas = document.getElementById(`spark-${o.id}`);
     if(!canvas) return;
     const ctx = canvas.getContext('2d');
-    if(sparkChartInstances[r.obra.id]) sparkChartInstances[r.obra.id].destroy();
-    sparkChartInstances[r.obra.id] = new Chart(ctx, {
-      type:'line',
+    if(sparkChartInstances[o.id]) sparkChartInstances[o.id].destroy();
+    sparkChartInstances[o.id] = new Chart(ctx, {
+      type:'bar',
       data:{
-        labels: dates,
-        datasets:[{
-          data: r.totalSeries, borderColor:'#2D336F', borderWidth:1.5,
-          pointRadius:0, tension:.3, fill:false, spanGaps:true
-        }]
+        labels,
+        datasets:[{ label:'Quantidade lançada', data, backgroundColor:'#2D336F', borderRadius:3 }]
       },
       options:{
         responsive:true,
         maintainAspectRatio:false,
-        plugins:{ legend:{ display:false }, tooltip:{ enabled:false } },
-        scales:{ x:{ display:false }, y:{ display:false } },
-        elements:{ point:{ radius:0 } }
+        plugins:{ legend:{ display:false } },
+        scales:{
+          x:{ ticks:{ font:{ size:9 } } },
+          y:{ beginAtZero:true, ticks:{ font:{ size:9 }, precision:0 } }
+        }
       }
     });
   });
@@ -1155,7 +1105,7 @@ function renderHistoryTable(){
       renderFormRows();
       renderTotalGeralInput();
       renderSummary();
-      renderSparkTable();
+      renderObrasDailyCharts();
       renderRankingObras();
       renderPresencaChart();
   renderFaixasChart();
@@ -1178,7 +1128,7 @@ async function reloadObrasAndRefresh(){
   loadParticipacaoForDate(currentDate);
   renderChamada();
   renderFormRows();
-  renderSparkTable();
+  renderObrasDailyCharts();
   renderChartFilterOptions();
   renderChart();
   renderHistoryTable();
@@ -1191,7 +1141,7 @@ function setupEvents(){
   document.getElementById('datePicker').addEventListener('change', (e)=>{
     currentDate = e.target.value;
     loadParticipacaoForDate(currentDate);
-    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderSparkTable(); renderRankingObras(); renderPresencaChart();
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasDailyCharts(); renderRankingObras(); renderPresencaChart();
   renderFaixasChart();
   });
   document.getElementById('prevDay').addEventListener('click', ()=>{
@@ -1199,7 +1149,7 @@ function setupEvents(){
     currentDate = d.toISOString().slice(0,10);
     document.getElementById('datePicker').value = currentDate;
     loadParticipacaoForDate(currentDate);
-    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderSparkTable(); renderRankingObras(); renderPresencaChart();
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasDailyCharts(); renderRankingObras(); renderPresencaChart();
   renderFaixasChart();
   });
   document.getElementById('nextDay').addEventListener('click', ()=>{
@@ -1207,7 +1157,7 @@ function setupEvents(){
     currentDate = d.toISOString().slice(0,10);
     document.getElementById('datePicker').value = currentDate;
     loadParticipacaoForDate(currentDate);
-    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderSparkTable(); renderRankingObras(); renderPresencaChart();
+    renderChamada(); renderFormRows(); renderTotalGeralInput(); renderSummary(); renderObrasDailyCharts(); renderRankingObras(); renderPresencaChart();
   renderFaixasChart();
   });
   document.getElementById('saveDayBtn').addEventListener('click', handleSaveDay);
@@ -1382,7 +1332,7 @@ async function init(){
   renderFormRows();
   renderTotalGeralInput();
   renderSummary();
-  renderSparkTable();
+  renderObrasDailyCharts();
   renderRankingObras();
   renderPresencaChart();
   renderFaixasChart();
