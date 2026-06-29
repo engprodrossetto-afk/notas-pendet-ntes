@@ -153,7 +153,7 @@
           </div>
         </div>
         <p id="updatedAt" class="text-[11px] text-slate-400 mt-2 text-right"></p>
-        <p class="text-[10px] text-slate-500 text-right font-mono mt-0.5">v2.9</p>
+        <p class="text-[10px] text-slate-500 text-right font-mono mt-0.5">v3.0</p>
       </div>
     </div>
   </div>
@@ -1071,19 +1071,25 @@ function renderChartEvolucao() {
     id: 'valueLabelsEvolucao',
     afterDatasetsDraw(chart) {
       const { ctx } = chart;
-      // only show labels for dataset 0 (total)
-      const dataset = chart.data.datasets[0];
-      const meta = chart.getDatasetMeta(0);
-      meta.data.forEach((point, idx) => {
-        const value = dataset.data[idx];
-        if (value == null) return;
-        ctx.save();
-        ctx.font = "700 12px 'Outfit', sans-serif";
-        ctx.fillStyle = '#0F2A4A';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(fmtNum(value), point.x, point.y - 10);
-        ctx.restore();
+      const configs = [
+        { dsIdx: 0, color: '#0F2A4A', baseline: 'bottom', offset: -10 },
+        { dsIdx: 1, color: '#DC2626', baseline: 'top',    offset:  10 },
+      ];
+      configs.forEach(({ dsIdx, color, baseline, offset }) => {
+        const dataset = chart.data.datasets[dsIdx];
+        if (!dataset) return;
+        const meta = chart.getDatasetMeta(dsIdx);
+        meta.data.forEach((point, i) => {
+          const value = dataset.data[i];
+          if (value == null) return;
+          ctx.save();
+          ctx.font = "600 11px 'Inter', sans-serif";
+          ctx.fillStyle = color;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = baseline;
+          ctx.fillText(fmtNum(value), point.x, point.y + offset);
+          ctx.restore();
+        });
       });
     }
   };
