@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -847,8 +847,12 @@ function renderKPIs() {
     ['kpiTotalGeral', 'kpiPctCritico', 'kpiCriticas'].forEach(id => document.getElementById(id).textContent = '—');
   }
 
-  const partNow = participRate(state.diaFim);
-  const partPrev = state.diaFim > 0 ? participRate(state.diaFim - 1) : null;
+  const { totalObraDias, totalFaltas } = computeFaltas(state.diaIni, state.diaFim);
+  const partNow = totalObraDias ? ((totalObraDias - totalFaltas) / totalObraDias) * 100 : 0;
+  const prevFaltasData = state.diaIni > 0 ? computeFaltas(state.diaIni - 1, state.diaIni - 1) : null;
+  const partPrev = prevFaltasData && prevFaltasData.totalObraDias
+    ? ((prevFaltasData.totalObraDias - prevFaltasData.totalFaltas) / prevFaltasData.totalObraDias) * 100
+    : null;
   animateNumber(document.getElementById('kpiParticipacao'), prevKpi.participacao, partNow, fmtPct);
   document.getElementById('kpiParticipacaoTrend').innerHTML =
     trendHTML(partPrev != null ? pct(partNow, partPrev) : null, false);
