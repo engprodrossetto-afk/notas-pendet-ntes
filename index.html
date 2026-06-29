@@ -153,7 +153,7 @@
           </div>
         </div>
         <p id="updatedAt" class="text-[11px] text-slate-400 mt-2 text-right"></p>
-        <p class="text-[10px] text-slate-500 text-right font-mono mt-0.5">v2.2</p>
+        <p class="text-[10px] text-slate-500 text-right font-mono mt-0.5">v2.3</p>
       </div>
     </div>
   </div>
@@ -207,6 +207,7 @@
       </div>
       <p id="kpiTotalGeral" class="font-display tnum text-3xl font-bold text-navy-900 mt-3">—</p>
       <div id="kpiTotalGeralTrend" class="flex items-center gap-1 mt-2 text-sm font-semibold"></div>
+      <div id="kpiTotalGeralDelta" class="mt-1 text-xs font-medium text-slate-500"></div>
     </div>
 
     <!-- KPI 2 -->
@@ -223,6 +224,7 @@
       </div>
       <p id="kpiPctCritico" class="font-display tnum text-3xl font-bold text-navy-900 mt-3">—</p>
       <div id="kpiPctCriticoTrend" class="flex items-center gap-1 mt-2 text-sm font-semibold"></div>
+      <div id="kpiPctCriticoDelta" class="mt-1 text-xs font-medium text-slate-500"></div>
     </div>
 
     <!-- KPI 3 -->
@@ -239,6 +241,7 @@
       </div>
       <p id="kpiParticipacao" class="font-display tnum text-3xl font-bold text-navy-900 mt-3">—</p>
       <div id="kpiParticipacaoTrend" class="flex items-center gap-1 mt-2 text-sm font-semibold"></div>
+      <div id="kpiParticipacaoDelta" class="mt-1 text-xs font-medium text-slate-500"></div>
     </div>
 
     <!-- KPI 4 -->
@@ -255,6 +258,7 @@
       </div>
       <p id="kpiCriticas" class="font-display tnum text-3xl font-bold text-navy-900 mt-3">—</p>
       <div id="kpiCriticasTrend" class="flex items-center gap-1 mt-2 text-sm font-semibold"></div>
+      <div id="kpiCriticasDelta" class="mt-1 text-xs font-medium text-slate-500"></div>
     </div>
   </section>
 
@@ -816,47 +820,89 @@ function animateNumber(el, from, to, formatter, ms = 700) {
 let prevKpi = { total: 0, pctCritico: 0, participacao: 0, criticas: 0 };
 
 function renderKPIs() {
-  const t = lastTotaisUpTo(state.diaFim);
-  const prev = state.diaIni > 0 ? lastTotaisUpTo(state.diaIni - 1) : null;
   const pct = (curV, prevV) => (prevV ? ((curV - prevV) / prevV) * 100 : null);
+
+  // Snapshot at end of period
+  const t = lastTotaisUpTo(state.diaFim);
+  // "Último publicado" = record just before the current snapshot
+  const prev = t ? prevTotais(t.dia) : null;
+  // Snapshot at START of period (for period delta)
+  const tIni = lastTotaisUpTo(state.diaIni);
+  const hasPeriodDelta = t && tIni && tIni.dia !== t.dia;
+
+  function numDeltaHTML(cur, ini, fmt, lowerIsBetter) {
+    if (!hasPeriodDelta || ini == null || cur == null) return '';
+    const delta = cur - ini;
+    const deltaPct = ini !== 0 ? (delta / ini) * 100 : null;
+    const isGood = lowerIsBetter ? delta < 0 : delta > 0;
+    const color = delta === 0 ? 'text-slate-400' : isGood ? 'text-emerald-600' : 'text-red-500';
+    const arrow = delta < 0 ? '↓' : delta > 0 ? '↑' : '→';
+    const pctStr = deltaPct != null ? ` (${deltaPct > 0 ? '+' : ''}${deltaPct.toFixed(1).replace('.',',')}%)` : '';
+    return `<span class="${color} font-semibold">${arrow} ${fmt(Math.abs(delta))}${pctStr}</span> <span class="text-slate-400">no período</span>`;
+  }
+
+  function ppDeltaHTML(cur, ini, lowerIsBetter) {
+    if (!hasPeriodDelta || ini == null || cur == null) return '';
+    const delta = cur - ini;
+    const isGood = lowerIsBetter ? delta < 0 : delta > 0;
+    const color = delta === 0 ? 'text-slate-400' : isGood ? 'text-emerald-600' : 'text-red-500';
+    const arrow = delta < 0 ? '↓' : delta > 0 ? '↑' : '→';
+    return `<span class="${color} font-semibold">${arrow} ${Math.abs(delta).toFixed(1).replace('.',',')} pp</span> <span class="text-slate-400">no período</span>`;
+  }
 
   if (t) {
     animateNumber(document.getElementById('kpiTotalGeral'), prevKpi.total, t.total, fmtNum);
     document.getElementById('kpiTotalGeralTrend').innerHTML =
       trendHTML(prev ? pct(t.total, prev.total) : null, true);
+    document.getElementById('kpiTotalGeralDelta').innerHTML =
+      numDeltaHTML(t.total, tIni ? tIni.total : null, fmtNum, true);
     prevKpi.total = t.total;
 
     if (t.c30 != null) {
       const pctCritico = (t.c30 / t.total) * 100;
+      const iniPctCritico = tIni && tIni.c30 != null && tIni.total ? (tIni.c30 / tIni.total) * 100 : null;
       animateNumber(document.getElementById('kpiPctCritico'), prevKpi.pctCritico, pctCritico, fmtPct);
       const prevPct = prev && prev.c30 != null ? (prev.c30 / prev.total) * 100 : null;
       document.getElementById('kpiPctCriticoTrend').innerHTML =
         trendHTML(prevPct != null ? pct(pctCritico, prevPct) : null, true);
+      document.getElementById('kpiPctCriticoDelta').innerHTML =
+        ppDeltaHTML(pctCritico, iniPctCritico, true);
       prevKpi.pctCritico = pctCritico;
 
       animateNumber(document.getElementById('kpiCriticas'), prevKpi.criticas, t.c30, fmtNum);
       document.getElementById('kpiCriticasTrend').innerHTML =
         trendHTML(prev && prev.c30 != null ? pct(t.c30, prev.c30) : null, true);
+      document.getElementById('kpiCriticasDelta').innerHTML =
+        numDeltaHTML(t.c30, tIni ? tIni.c30 : null, fmtNum, true);
       prevKpi.criticas = t.c30;
     } else {
       document.getElementById('kpiPctCritico').textContent = '—';
       document.getElementById('kpiCriticas').textContent = '—';
+      document.getElementById('kpiPctCriticoDelta').innerHTML = '';
+      document.getElementById('kpiCriticasDelta').innerHTML = '';
       document.getElementById('kpiPctCriticoTrend').innerHTML = '<span class="text-slate-400 text-xs">sem faixas neste dia</span>';
       document.getElementById('kpiCriticasTrend').innerHTML = '';
     }
   } else {
     ['kpiTotalGeral', 'kpiPctCritico', 'kpiCriticas'].forEach(id => document.getElementById(id).textContent = '—');
+    ['kpiTotalGeralDelta','kpiPctCriticoDelta','kpiCriticasDelta'].forEach(id => document.getElementById(id).innerHTML = '');
   }
 
+  // Taxa de Participação: full range
   const { totalObraDias, totalFaltas } = computeFaltas(state.diaIni, state.diaFim);
   const partNow = totalObraDias ? ((totalObraDias - totalFaltas) / totalObraDias) * 100 : 0;
-  const prevFaltasData = state.diaIni > 0 ? computeFaltas(state.diaIni - 1, state.diaIni - 1) : null;
-  const partPrev = prevFaltasData && prevFaltasData.totalObraDias
-    ? ((prevFaltasData.totalObraDias - prevFaltasData.totalFaltas) / prevFaltasData.totalObraDias) * 100
-    : null;
+  // "último publicado" para participação = dia anterior ao diaFim
+  const prevPartData = state.diaFim > 0 ? computeFaltas(state.diaFim - 1, state.diaFim - 1) : null;
+  const partPrev = prevPartData && prevPartData.totalObraDias
+    ? ((prevPartData.totalObraDias - prevPartData.totalFaltas) / prevPartData.totalObraDias) * 100 : null;
   animateNumber(document.getElementById('kpiParticipacao'), prevKpi.participacao, partNow, fmtPct);
   document.getElementById('kpiParticipacaoTrend').innerHTML =
     trendHTML(partPrev != null ? pct(partNow, partPrev) : null, false);
+  // Period delta for participação
+  const iniPartData = computeFaltas(state.diaIni, state.diaIni);
+  const iniPart = iniPartData.totalObraDias ? ((iniPartData.totalObraDias - iniPartData.totalFaltas) / iniPartData.totalObraDias) * 100 : null;
+  document.getElementById('kpiParticipacaoDelta').innerHTML =
+    hasPeriodDelta ? ppDeltaHTML(partNow, iniPart, false) : '';
   prevKpi.participacao = partNow;
 }
 
