@@ -153,7 +153,7 @@
           </div>
         </div>
         <p id="updatedAt" class="text-[11px] text-slate-400 mt-2 text-right"></p>
-        <p class="text-[10px] text-slate-500 text-right font-mono mt-0.5">v2.7</p>
+        <p class="text-[10px] text-slate-500 text-right font-mono mt-0.5">v2.8</p>
       </div>
     </div>
   </div>
@@ -1046,67 +1046,91 @@ function diasNoPeriodo() {
 function renderChartEvolucao() {
   const dias = diasNoPeriodo();
   const labels = dias.map(d => d.label);
-  const data = dias.map(d => { const t = totaisAt(d.idx); return t ? t.total : null; });
+  const mkSerie = key => dias.map(d => { const t = totaisAt(d.idx); return t && t[key] != null ? t[key] : null; });
+  const dataTotal = mkSerie('total');
+  const dataC30   = mkSerie('c30');
+  const dataF0_2  = mkSerie('f0_2');
+  const dataF3_7  = mkSerie('f3_7');
+  const dataF8_30 = mkSerie('f8_30');
 
   document.getElementById('chart1Range').textContent =
     dias.length ? `${dias[0].label} – ${dias[dias.length - 1].label}` : '—';
 
   if (chartEvolucao) {
     chartEvolucao.data.labels = labels;
-    chartEvolucao.data.datasets[0].data = data;
+    const ds = chartEvolucao.data.datasets;
+    ds[0].data = dataTotal;
+    ds[1].data = dataC30;
+    ds[2].data = dataF0_2;
+    ds[3].data = dataF3_7;
+    ds[4].data = dataF8_30;
     chartEvolucao.update();
     return;
   }
 
   const ctx = document.getElementById('chartEvolucao').getContext('2d');
   const gradient = ctx.createLinearGradient(0, 0, 0, 260);
-  gradient.addColorStop(0, 'rgba(15,42,74,0.18)');
+  gradient.addColorStop(0, 'rgba(15,42,74,0.12)');
   gradient.addColorStop(1, 'rgba(15,42,74,0)');
 
   const valueLabelsPlugin = {
     id: 'valueLabelsEvolucao',
     afterDatasetsDraw(chart) {
       const { ctx } = chart;
-      chart.data.datasets.forEach((dataset, i) => {
-        const meta = chart.getDatasetMeta(i);
-        meta.data.forEach((point, idx) => {
-          const value = dataset.data[idx];
-          if (value == null) return;
-          ctx.save();
-          ctx.font = "700 12px 'Outfit', sans-serif";
-          ctx.fillStyle = '#0F2A4A';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'bottom';
-          ctx.fillText(fmtNum(value), point.x, point.y - 10);
-          ctx.restore();
-        });
+      // only show labels for dataset 0 (total)
+      const dataset = chart.data.datasets[0];
+      const meta = chart.getDatasetMeta(0);
+      meta.data.forEach((point, idx) => {
+        const value = dataset.data[idx];
+        if (value == null) return;
+        ctx.save();
+        ctx.font = "700 12px 'Outfit', sans-serif";
+        ctx.fillStyle = '#0F2A4A';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(fmtNum(value), point.x, point.y - 10);
+        ctx.restore();
       });
     }
   };
+
+  const lineDefaults = (label, color, data, fill) => ({
+    label, data,
+    borderColor: color,
+    backgroundColor: fill || 'transparent',
+    borderWidth: 2,
+    pointBackgroundColor: color,
+    pointBorderColor: '#fff',
+    pointRadius: 4,
+    pointHoverRadius: 6,
+    tension: 0.35,
+    fill: !!fill,
+    spanGaps: true,
+  });
 
   chartEvolucao = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
-      datasets: [{
-        label: 'Total geral pendente',
-        data,
-        borderColor: '#0F2A4A',
-        backgroundColor: gradient,
-        borderWidth: 2.5,
-        pointBackgroundColor: '#FF7A30',
-        pointBorderColor: '#fff',
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        tension: 0.35,
-        fill: true,
-        spanGaps: true,
-      }]
+      datasets: [
+        { ...lineDefaults('Total geral', '#0F2A4A', dataTotal, gradient), borderWidth: 2.5, pointRadius: 5 },
+        lineDefaults('> 30 dias',  '#DC2626', dataC30),
+        lineDefaults('0–2 dias',   '#16A34A', dataF0_2),
+        lineDefaults('3–7 dias',   '#1F4A78', dataF3_7),
+        lineDefaults('8–30 dias',  '#FF7A30', dataF8_30),
+      ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 24 } },
-      plugins: { legend: { display: false }, tooltip: { ...tooltipBase, callbacks: { label: c => ' ' + fmtNum(c.parsed.y) + ' notas' } } },
+      layout: { padding: { top: 28 } },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: { font: { family: 'Inter', size: 11 }, boxWidth: 10, boxHeight: 10, padding: 16 }
+        },
+        tooltip: { ...tooltipBase, callbacks: { label: c => ` ${c.dataset.label}: ${fmtNum(c.parsed.y)} notas` } }
+      },
       scales: {
         x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'Inter', size: 11 } } },
         y: { grid: { color: '#EEF2F7' }, ticks: { color: '#64748B', font: { family: 'Inter', size: 11 } }, beginAtZero: true }
