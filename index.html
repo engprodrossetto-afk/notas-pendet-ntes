@@ -153,7 +153,7 @@
           </div>
         </div>
         <p id="updatedAt" class="text-[11px] text-slate-400 mt-2 text-right"></p>
-        <p class="text-[10px] text-slate-500 text-right font-mono mt-0.5">v2.6</p>
+        <p class="text-[10px] text-slate-500 text-right font-mono mt-0.5">v2.7</p>
       </div>
     </div>
   </div>
@@ -932,10 +932,21 @@ function renderRankingPeriodo() {
     const pctTotal  = (totalIni != null && totalIni !== 0) ? (deltaTotal / totalIni) * 100 : null;
     return { obra, totalFim, c30Fim, deltaC30, deltaTotal, pctC30, pctTotal };
   }).sort((a, b) => {
-    // prioritize: most reduction in c30 first (most negative delta)
+    // 1) obras zeradas em c30 vêm primeiro
+    const aZero = a.c30Fim === 0 ? 0 : 1;
+    const bZero = b.c30Fim === 0 ? 0 : 1;
+    if (aZero !== bZero) return aZero - bZero;
+    // 2) entre zeradas: maior redução no total
+    if (aZero === 0) {
+      const at = a.deltaTotal != null ? a.deltaTotal : Infinity;
+      const bt = b.deltaTotal != null ? b.deltaTotal : Infinity;
+      return at - bt;
+    }
+    // 3) demais: maior redução em c30
     const ac = a.deltaC30 != null ? a.deltaC30 : Infinity;
     const bc = b.deltaC30 != null ? b.deltaC30 : Infinity;
     if (ac !== bc) return ac - bc;
+    // 4) empate em c30: maior redução no total
     const at = a.deltaTotal != null ? a.deltaTotal : Infinity;
     const bt = b.deltaTotal != null ? b.deltaTotal : Infinity;
     return at - bt;
