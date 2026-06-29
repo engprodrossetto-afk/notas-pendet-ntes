@@ -153,6 +153,7 @@
           </div>
         </div>
         <p id="updatedAt" class="text-[11px] text-slate-400 mt-2 text-right"></p>
+        <p class="text-[10px] text-slate-500 text-right font-mono mt-0.5">v2.2</p>
       </div>
     </div>
   </div>
@@ -816,7 +817,7 @@ let prevKpi = { total: 0, pctCritico: 0, participacao: 0, criticas: 0 };
 
 function renderKPIs() {
   const t = lastTotaisUpTo(state.diaFim);
-  const prev = t ? prevTotais(t.dia) : null;
+  const prev = state.diaIni > 0 ? lastTotaisUpTo(state.diaIni - 1) : null;
   const pct = (curV, prevV) => (prevV ? ((curV - prevV) / prevV) * 100 : null);
 
   if (t) {
