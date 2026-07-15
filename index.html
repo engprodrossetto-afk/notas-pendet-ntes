@@ -676,12 +676,15 @@ async function sbDelete(table, idField, idValue) {
   if (!res.ok) { let t; try { t = (await res.json()).message; } catch (e) { t = await res.text(); } throw new Error(t || `Erro ao excluir em ${table}`); }
   return res.json();
 }
-async function sbUpsertByDate(table, payload) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=data`, {
+async function sbUpsert(table, payload, onConflict) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?on_conflict=${onConflict}`, {
     method: 'POST', headers: authHeaders({ Prefer: 'resolution=merge-duplicates,return=representation' }), body: JSON.stringify(payload)
   });
   if (!res.ok) { let t; try { t = (await res.json()).message; } catch (e) { t = await res.text(); } throw new Error(t || `Erro ao salvar em ${table}`); }
   return res.json();
+}
+async function sbUpsertByDate(table, payload) {
+  return sbUpsert(table, payload, 'data');
 }
 
 async function sbLogin(email, password) {
@@ -1806,7 +1809,7 @@ function renderGestaoLancForm(lancByObraId, totalDia) {
           const total = r && r.total_pendente != null ? r.total_pendente : '';
           const c15 = r && r.acima_15_dias != null ? r.acima_15_dias : '';
           const c30 = r && r.acima_30_dias != null ? r.acima_30_dias : '';
-          return `<tr class="border-b border-slate-50" data-obra-id="${o.id}" data-lanc-id="${r ? r.id : ''}">
+          return `<tr class="border-b border-slate-50" data-obra-id="${o.id}">
             <td class="py-2 pr-2 font-medium text-navy-900">${o.nome}</td>
             <td class="py-2 pr-2"><input type="checkbox" class="lancParticipou" ${part ? 'checked' : ''}></td>
             <td class="py-2 pr-2"><input type="number" class="lancTotal text-sm rounded-lg border border-slate-200 px-2 py-1 w-24" value="${total}"></td>
@@ -1853,7 +1856,6 @@ async function salvarLancamentoDia() {
     const rows = document.querySelectorAll('#gestaoLancObrasTable tbody tr');
     for (const row of rows) {
       const obraId = row.dataset.obraId;
-      const lancId = row.dataset.lancId;
       const participou = row.querySelector('.lancParticipou').checked;
       const payload = {
         obra_id: obraId, data: dateStr, participou,
@@ -1861,8 +1863,7 @@ async function salvarLancamentoDia() {
         acima_15_dias: numOrNull(row.querySelector('.lancC15').value),
         acima_30_dias: numOrNull(row.querySelector('.lancC30').value),
       };
-      if (lancId) await sbUpdate('notas_lancamentos', 'id', lancId, payload);
-      else await sbInsert('notas_lancamentos', payload);
+      await sbUpsert('notas_lancamentos', payload, 'obra_id,data');
     }
 
     const totGeral = document.getElementById('totGeralInput').value;
