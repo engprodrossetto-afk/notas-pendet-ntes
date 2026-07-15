@@ -191,7 +191,7 @@
 <!-- ============ KPI CARDS + TAB OVERVIEW ============ -->
 <main class="max-w-7xl mx-auto px-6 pb-16">
 <div id="tab-overview" class="tab-panel">
-  <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-6">
+  <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5 mt-6">
 
     <!-- KPI 1 -->
     <div class="kpi-card rise-in bg-white rounded-2xl shadow-card border border-slate-100 p-5 relative overflow-hidden" style="animation-delay:.16s">
@@ -260,6 +260,23 @@
       <div id="kpiCriticasTrend" class="flex items-center gap-1 mt-2 text-sm font-semibold"></div>
       <div id="kpiCriticasDelta" class="mt-1 text-xs font-medium text-slate-500"></div>
     </div>
+
+    <!-- KPI 5 -->
+    <div class="kpi-card rise-in bg-white rounded-2xl shadow-card border border-slate-100 p-5 relative overflow-hidden" style="animation-delay:.30s">
+      <span class="absolute left-0 top-0 bottom-0 w-1.5" style="background:#D97706"></span>
+      <div class="flex items-start justify-between">
+        <div>
+          <span class="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full" style="background:#FFFBEB;color:#D97706">Operacional</span>
+          <p class="text-slate-500 text-xs font-medium mt-2">Notas Críticas <span class="text-slate-400 font-normal">(&ge;15 dias, menor é melhor)</span></p>
+        </div>
+        <div class="kpi-icon-wrap w-9 h-9 rounded-xl flex items-center justify-center" style="background:#FFFBEB">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+        </div>
+      </div>
+      <p id="kpiCriticas15" class="font-display tnum text-3xl font-bold text-navy-900 mt-3">—</p>
+      <div id="kpiCriticas15Trend" class="flex items-center gap-1 mt-2 text-sm font-semibold"></div>
+      <div id="kpiCriticas15Delta" class="mt-1 text-xs font-medium text-slate-500"></div>
+    </div>
   </section>
 
   <!-- ============ CHART 1 — Evolução do total geral ============ -->
@@ -323,6 +340,7 @@
     <p class="text-slate-400 text-xs mb-3">Conforme período selecionado · variação no período e tendência diária · obra selecionada no filtro fica destacada</p>
     <div class="flex gap-1 bg-slate-100 rounded-xl p-1 w-fit mb-3">
       <button id="metricaTotalBtn" type="button" class="metric-btn text-xs font-semibold px-3 py-1.5 rounded-lg" data-active="true">Total de Notas</button>
+      <button id="metricaC15Btn" type="button" class="metric-btn text-xs font-semibold px-3 py-1.5 rounded-lg" data-active="false">≥ 15 dias</button>
       <button id="metricaC30Btn" type="button" class="metric-btn text-xs font-semibold px-3 py-1.5 rounded-lg" data-active="false">Acima de 30 dias</button>
     </div>
     <div id="obraMiniGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
@@ -481,11 +499,12 @@
         <section class="bg-white rounded-2xl shadow-card border border-slate-100 p-5 md:p-6 mb-5">
           <h2 class="font-display text-lg font-bold text-navy-900 mb-1">Total Geral da Empresa</h2>
           <p class="text-slate-400 text-xs mb-3">Opcional · deixe em branco se ainda não tiver o fechamento do dia</p>
-          <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div class="grid grid-cols-2 sm:grid-cols-6 gap-3">
             <div class="flex flex-col gap-1"><label class="text-[10px] uppercase text-slate-400 font-semibold">Total Geral</label><input id="totGeralInput" type="number" class="text-sm rounded-lg border border-slate-200 px-3 py-1.5"></div>
             <div class="flex flex-col gap-1"><label class="text-[10px] uppercase text-slate-400 font-semibold">0–2 dias</label><input id="totF02Input" type="number" class="text-sm rounded-lg border border-slate-200 px-3 py-1.5"></div>
             <div class="flex flex-col gap-1"><label class="text-[10px] uppercase text-slate-400 font-semibold">3–7 dias</label><input id="totF37Input" type="number" class="text-sm rounded-lg border border-slate-200 px-3 py-1.5"></div>
             <div class="flex flex-col gap-1"><label class="text-[10px] uppercase text-slate-400 font-semibold">8–30 dias</label><input id="totF830Input" type="number" class="text-sm rounded-lg border border-slate-200 px-3 py-1.5"></div>
+            <div class="flex flex-col gap-1"><label class="text-[10px] uppercase text-slate-400 font-semibold">&ge;15 dias</label><input id="totC15Input" type="number" class="text-sm rounded-lg border border-slate-200 px-3 py-1.5"></div>
             <div class="flex flex-col gap-1"><label class="text-[10px] uppercase text-slate-400 font-semibold">&gt;30 dias</label><input id="totC30Input" type="number" class="text-sm rounded-lg border border-slate-200 px-3 py-1.5"></div>
           </div>
         </section>
@@ -689,7 +708,7 @@ async function loadAllDataFromSupabase() {
   try {
     const [obrasRaw, lancRaw, totaisRaw] = await Promise.all([
       sbSelect('notas_obras', 'select=id,nome,ativo,ordem&order=ordem'),
-      sbSelect('notas_lancamentos', 'select=id,data,participou,total_pendente,acima_30_dias,obra_id,notas_obras(nome)&order=data'),
+      sbSelect('notas_lancamentos', 'select=id,data,participou,total_pendente,acima_30_dias,acima_15_dias,obra_id,notas_obras(nome)&order=data'),
       sbSelect('notas_totais_diarios', 'select=*&order=data'),
     ]);
 
@@ -707,12 +726,12 @@ async function loadAllDataFromSupabase() {
     LANC = lancRaw.map(r => ({
       id: r.id, dia: diaIdxByDate[r.data], obra: r.notas_obras ? r.notas_obras.nome : null,
       obra_id: r.obra_id, data: r.data,
-      part: !!r.participou, total: r.total_pendente, c30: r.acima_30_dias,
+      part: !!r.participou, total: r.total_pendente, c30: r.acima_30_dias, c15: r.acima_15_dias,
     })).filter(r => r.obra != null);
 
     TOTAIS = totaisRaw.map(r => ({
       id: r.id, dia: diaIdxByDate[r.data], data: r.data, total: r.total_geral,
-      f0_2: r.faixa_0_2, f3_7: r.faixa_3_7, f8_30: r.faixa_8_30, c30: r.acima_30_dias,
+      f0_2: r.faixa_0_2, f3_7: r.faixa_3_7, f8_30: r.faixa_8_30, c30: r.acima_30_dias, c15: r.acima_15_dias,
     }));
 
     state.diaIni = 0;
@@ -740,7 +759,7 @@ const state = {
   obra: 'TODAS',
   diaIni: 0,
   diaFim: DAYS.length - 1,
-  metricaObra: 'total', // 'total' | 'c30'
+  metricaObra: 'total', // 'total' | 'c15' | 'c30'
 };
 
 function fmtNum(v) { return Math.round(v).toLocaleString('pt-BR'); }
@@ -828,7 +847,7 @@ function animateNumber(el, from, to, formatter, ms = 700) {
   requestAnimationFrame(tick);
 }
 
-let prevKpi = { total: 0, pctCritico: 0, participacao: 0, criticas: 0 };
+let prevKpi = { total: 0, pctCritico: 0, participacao: 0, criticas: 0, criticas15: 0 };
 
 function renderKPIs() {
   const pct = (curV, prevV) => (prevV ? ((curV - prevV) / prevV) * 100 : null);
@@ -894,9 +913,22 @@ function renderKPIs() {
       document.getElementById('kpiPctCriticoTrend').innerHTML = '<span class="text-slate-400 text-xs">sem faixas neste dia</span>';
       document.getElementById('kpiCriticasTrend').innerHTML = '';
     }
+
+    if (t.c15 != null) {
+      animateNumber(document.getElementById('kpiCriticas15'), prevKpi.criticas15, t.c15, fmtNum);
+      document.getElementById('kpiCriticas15Trend').innerHTML =
+        trendHTML(prev && prev.c15 != null ? pct(t.c15, prev.c15) : null, true);
+      document.getElementById('kpiCriticas15Delta').innerHTML =
+        numDeltaHTML(t.c15, tIni ? tIni.c15 : null, fmtNum, true);
+      prevKpi.criticas15 = t.c15;
+    } else {
+      document.getElementById('kpiCriticas15').textContent = '—';
+      document.getElementById('kpiCriticas15Delta').innerHTML = '';
+      document.getElementById('kpiCriticas15Trend').innerHTML = '<span class="text-slate-400 text-xs">sem lançamento ainda</span>';
+    }
   } else {
-    ['kpiTotalGeral', 'kpiPctCritico', 'kpiCriticas'].forEach(id => document.getElementById(id).textContent = '—');
-    ['kpiTotalGeralDelta','kpiPctCriticoDelta','kpiCriticasDelta'].forEach(id => document.getElementById(id).innerHTML = '');
+    ['kpiTotalGeral', 'kpiPctCritico', 'kpiCriticas', 'kpiCriticas15'].forEach(id => document.getElementById(id).textContent = '—');
+    ['kpiTotalGeralDelta','kpiPctCriticoDelta','kpiCriticasDelta','kpiCriticas15Delta'].forEach(id => document.getElementById(id).innerHTML = '');
   }
 
   // Taxa de Participação: full range
@@ -926,11 +958,15 @@ function renderRankingPeriodo() {
     const totalIni  = rIni && rIni.total != null ? rIni.total : null;
     const c30Fim    = rFim && rFim.c30   != null ? rFim.c30   : null;
     const c30Ini    = rIni && rIni.c30   != null ? rIni.c30   : null;
+    const c15Fim    = rFim && rFim.c15   != null ? rFim.c15   : null;
+    const c15Ini    = rIni && rIni.c15   != null ? rIni.c15   : null;
     const deltaC30  = (c30Fim  != null && c30Ini  != null) ? c30Fim  - c30Ini  : null;
+    const deltaC15  = (c15Fim  != null && c15Ini  != null) ? c15Fim  - c15Ini  : null;
     const deltaTotal= (totalFim != null && totalIni != null) ? totalFim - totalIni : null;
     const pctC30    = (c30Ini  != null && c30Ini  !== 0) ? (deltaC30  / c30Ini)  * 100 : null;
+    const pctC15    = (c15Ini  != null && c15Ini  !== 0) ? (deltaC15  / c15Ini)  * 100 : null;
     const pctTotal  = (totalIni != null && totalIni !== 0) ? (deltaTotal / totalIni) * 100 : null;
-    return { obra, totalFim, c30Fim, deltaC30, deltaTotal, pctC30, pctTotal };
+    return { obra, totalFim, c30Fim, deltaC30, deltaTotal, pctC30, pctTotal, c15Fim, deltaC15, pctC15 };
   }).sort((a, b) => {
     // 1) obras zeradas em c30 vêm primeiro
     const aZero = a.c30Fim === 0 ? 0 : 1;
@@ -977,6 +1013,8 @@ function renderRankingPeriodo() {
           <th class="py-2 pr-3">Obra</th>
           <th class="py-2 pr-3 text-right">Total atual</th>
           <th class="py-2 pr-3 text-right">Δ Total no período</th>
+          <th class="py-2 pr-1 text-right">&ge;15d atual</th>
+          <th class="py-2 pr-3 text-right">Δ &ge;15d no período</th>
           <th class="py-2 pr-1 text-right">&gt;30d atual</th>
           <th class="py-2 pl-3 text-right">Δ &gt;30d no período</th>
         </tr>
@@ -991,6 +1029,8 @@ function renderRankingPeriodo() {
             <td class="py-2 pr-3 font-semibold text-navy-900">${r.obra}${star}</td>
             <td class="py-2 pr-3 text-right tnum text-slate-600">${r.totalFim != null ? fmtNum(r.totalFim) : '—'}</td>
             <td class="py-2 pr-3 text-right">${deltaCell(r.deltaTotal, r.pctTotal, true)}</td>
+            <td class="py-2 pr-1 text-right tnum text-slate-600">${r.c15Fim != null ? fmtNum(r.c15Fim) : '—'}</td>
+            <td class="py-2 pr-3 text-right">${deltaCell(r.deltaC15, r.pctC15, true)}</td>
             <td class="py-2 pr-1 text-right tnum text-slate-600">${r.c30Fim != null ? fmtNum(r.c30Fim) : '—'}</td>
             <td class="py-2 pl-3 text-right">${deltaCell(r.deltaC30, r.pctC30, true)}</td>
           </tr>`;
@@ -1048,6 +1088,7 @@ function renderChartEvolucao() {
   const labels = dias.map(d => d.label);
   const mkSerie = key => dias.map(d => { const t = totaisAt(d.idx); return t && t[key] != null ? t[key] : null; });
   const dataTotal = mkSerie('total');
+  const dataC15   = mkSerie('c15');
   const dataC30   = mkSerie('c30');
 
   document.getElementById('chart1Range').textContent =
@@ -1057,7 +1098,8 @@ function renderChartEvolucao() {
     chartEvolucao.data.labels = labels;
     const ds = chartEvolucao.data.datasets;
     ds[0].data = dataTotal;
-    ds[1].data = dataC30;
+    ds[1].data = dataC15;
+    ds[2].data = dataC30;
     chartEvolucao.update();
     return;
   }
@@ -1073,7 +1115,8 @@ function renderChartEvolucao() {
       const { ctx } = chart;
       const configs = [
         { dsIdx: 0, color: '#0F2A4A', baseline: 'bottom', offset: -10 },
-        { dsIdx: 1, color: '#DC2626', baseline: 'top',    offset:  10 },
+        { dsIdx: 1, color: '#D97706', baseline: 'top',    offset:  10 },
+        { dsIdx: 2, color: '#DC2626', baseline: 'top',    offset:  24 },
       ];
       configs.forEach(({ dsIdx, color, baseline, offset }) => {
         const dataset = chart.data.datasets[dsIdx];
@@ -1114,6 +1157,7 @@ function renderChartEvolucao() {
       labels,
       datasets: [
         { ...lineDefaults('Total geral', '#0F2A4A', dataTotal, gradient), borderWidth: 2.5, pointRadius: 5 },
+        lineDefaults('≥ 15 dias', '#D97706', dataC15),
         lineDefaults('> 30 dias',  '#DC2626', dataC30),
       ]
     },
@@ -1147,6 +1191,7 @@ function renderChartFaixas() {
     f8_30: dias.map(d => totaisAt(d.idx).f8_30),
     c30: dias.map(d => totaisAt(d.idx).c30),
   };
+  const dataC15 = dias.map(d => { const t = totaisAt(d.idx); return t && t.c15 != null ? t.c15 : null; });
   const cfgDatasets = [
     { key: 'f0_2', label: '0–2 dias' },
     { key: 'f3_7', label: '3–7 dias' },
@@ -1157,6 +1202,7 @@ function renderChartFaixas() {
   if (chartFaixas) {
     chartFaixas.data.labels = labels;
     cfgDatasets.forEach((c, i) => chartFaixas.data.datasets[i].data = series[c.key]);
+    chartFaixas.data.datasets[cfgDatasets.length].data = dataC15;
     chartFaixas.update();
     return;
   }
@@ -1166,17 +1212,26 @@ function renderChartFaixas() {
     type: 'bar',
     data: {
       labels,
-      datasets: cfgDatasets.map(c => ({
-        label: c.label, data: series[c.key], backgroundColor: FAIXA_COLORS[c.key],
-        borderRadius: 4, maxBarThickness: 46,
-      }))
+      datasets: [
+        ...cfgDatasets.map(c => ({
+          label: c.label, data: series[c.key], backgroundColor: FAIXA_COLORS[c.key],
+          borderRadius: 4, maxBarThickness: 46,
+        })),
+        {
+          type: 'line', label: '≥ 15 dias', data: dataC15, yAxisID: 'y1',
+          borderColor: '#D97706', backgroundColor: '#D97706', borderWidth: 2.5,
+          borderDash: [5, 3], pointRadius: 4, pointBackgroundColor: '#D97706',
+          tension: 0.3, spanGaps: true, order: 0,
+        },
+      ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 }, boxWidth: 10, boxHeight: 10 } }, tooltip: tooltipBase },
       scales: {
         x: { stacked: true, grid: { display: false }, ticks: { color: '#64748B' } },
-        y: { stacked: true, grid: { color: '#EEF2F7' }, ticks: { color: '#64748B' }, beginAtZero: true }
+        y: { stacked: true, grid: { color: '#EEF2F7' }, ticks: { color: '#64748B' }, beginAtZero: true },
+        y1: { position: 'right', grid: { display: false }, ticks: { color: '#D97706' }, beginAtZero: true }
       }
     }
   });
@@ -1195,8 +1250,9 @@ function renderRanking() {
     const r = lancFor(diaIdx, o);
     const total = r && r.total != null ? r.total : null;
     const c30 = r && r.c30 != null ? r.c30 : null;
+    const c15 = r && r.c15 != null ? r.c15 : null;
     const pctC = total ? (c30 / total) * 100 : 0;
-    return { obra: o, total, c30, pctC, reportou: !!(r && r.part) };
+    return { obra: o, total, c30, c15, pctC, reportou: !!(r && r.part) };
   }).sort((a, b) => (b.total || -1) - (a.total || -1));
 
   const html = `
@@ -1204,6 +1260,7 @@ function renderRanking() {
       <thead class="sticky top-0 bg-white">
         <tr class="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
           <th class="py-2 pr-2">Obra</th><th class="py-2 pr-2 text-right">Total</th>
+          <th class="py-2 pr-2 text-right">&ge;15d</th>
           <th class="py-2 pr-2 text-right">&gt;30d</th>
         </tr>
       </thead>
@@ -1212,6 +1269,7 @@ function renderRanking() {
           <tr class="border-b border-slate-50 ${r.obra === state.obra ? 'bg-orange-50' : ''}">
             <td class="py-2 pr-2 font-medium text-navy-900">${r.obra}${r.c30 === 0 ? `<span title="Sem notas acima de 30 dias" class="text-amber-400 ml-1">&#9733;</span>` : ``}</td>
             <td class="py-2 pr-2 text-right tnum">${r.total != null ? fmtNum(r.total) : '—'}</td>
+            <td class="py-2 pr-2 text-right tnum text-slate-500">${r.c15 != null ? fmtNum(r.c15) : '—'}</td>
             <td class="py-2 pr-2 text-right tnum text-slate-500">${r.c30 != null ? fmtNum(r.c30) : '—'}</td>
           </tr>`).join('')}
       </tbody>
@@ -1239,8 +1297,8 @@ function miniTrendBadge(deltaPct, invert) {
 function renderObraMiniCharts() {
   const dias = diasNoPeriodo();
   const labels = dias.map(d => d.label);
-  const metrica = state.metricaObra; // 'total' | 'c30'
-  const metricaLabel = metrica === 'c30' ? '>30 dias' : 'notas';
+  const metrica = state.metricaObra; // 'total' | 'c15' | 'c30'
+  const metricaLabel = metrica === 'c30' ? '>30 dias' : metrica === 'c15' ? '≥15 dias' : 'notas';
 
   const rows = OBRAS.map(obra => {
     const serie = dias.map(d => {
@@ -1278,10 +1336,10 @@ function renderObraMiniCharts() {
   rows.forEach(r => {
     const cid = safeId(r.obra);
     const isSel = r.obra === state.obra;
-    const color = isSel ? '#FF7A30' : (metrica === 'c30' ? '#DC2626' : '#1F4A78');
+    const color = isSel ? '#FF7A30' : (metrica === 'c30' ? '#DC2626' : metrica === 'c15' ? '#D97706' : '#1F4A78');
     const ctx = document.getElementById(cid).getContext('2d');
     const gradient = ctx.createLinearGradient(0, 0, 0, 64);
-    gradient.addColorStop(0, isSel ? 'rgba(255,122,48,0.22)' : (metrica === 'c30' ? 'rgba(220,38,38,0.16)' : 'rgba(31,74,120,0.16)'));
+    gradient.addColorStop(0, isSel ? 'rgba(255,122,48,0.22)' : (metrica === 'c30' ? 'rgba(220,38,38,0.16)' : metrica === 'c15' ? 'rgba(217,119,6,0.16)' : 'rgba(31,74,120,0.16)'));
     gradient.addColorStop(1, 'rgba(31,74,120,0)');
 
     if (obraMiniCharts[r.obra]) {
@@ -1726,7 +1784,7 @@ async function criarNovaObra() {
 
 async function loadDiaParaEdicao(dateStr) {
   const [lancDia, totalDia] = await Promise.all([
-    sbSelect('notas_lancamentos', `select=id,obra_id,participou,total_pendente,acima_30_dias&data=eq.${dateStr}`),
+    sbSelect('notas_lancamentos', `select=id,obra_id,participou,total_pendente,acima_30_dias,acima_15_dias&data=eq.${dateStr}`),
     sbSelect('notas_totais_diarios', `select=*&data=eq.${dateStr}`),
   ]);
   const lancByObraId = {};
@@ -1739,18 +1797,20 @@ function renderGestaoLancForm(lancByObraId, totalDia) {
   document.getElementById('gestaoLancObrasTable').innerHTML = `
     <table class="w-full text-sm">
       <thead><tr class="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100">
-        <th class="py-2 pr-2">Obra</th><th class="py-2 pr-2">Participou</th><th class="py-2 pr-2">Total Pendente</th><th class="py-2 pr-2">&gt;30 dias</th>
+        <th class="py-2 pr-2">Obra</th><th class="py-2 pr-2">Participou</th><th class="py-2 pr-2">Total Pendente</th><th class="py-2 pr-2">&ge;15 dias</th><th class="py-2 pr-2">&gt;30 dias</th>
       </tr></thead>
       <tbody>
         ${obrasAtivas.map(o => {
           const r = lancByObraId[o.id];
           const part = r ? r.participou : false;
           const total = r && r.total_pendente != null ? r.total_pendente : '';
+          const c15 = r && r.acima_15_dias != null ? r.acima_15_dias : '';
           const c30 = r && r.acima_30_dias != null ? r.acima_30_dias : '';
           return `<tr class="border-b border-slate-50" data-obra-id="${o.id}" data-lanc-id="${r ? r.id : ''}">
             <td class="py-2 pr-2 font-medium text-navy-900">${o.nome}</td>
             <td class="py-2 pr-2"><input type="checkbox" class="lancParticipou" ${part ? 'checked' : ''}></td>
             <td class="py-2 pr-2"><input type="number" class="lancTotal text-sm rounded-lg border border-slate-200 px-2 py-1 w-24" value="${total}"></td>
+            <td class="py-2 pr-2"><input type="number" class="lancC15 text-sm rounded-lg border border-slate-200 px-2 py-1 w-24" value="${c15}"></td>
             <td class="py-2 pr-2"><input type="number" class="lancC30 text-sm rounded-lg border border-slate-200 px-2 py-1 w-24" value="${c30}"></td>
           </tr>`;
         }).join('')}
@@ -1761,6 +1821,7 @@ function renderGestaoLancForm(lancByObraId, totalDia) {
   document.getElementById('totF02Input').value = totalDia && totalDia.faixa_0_2 != null ? totalDia.faixa_0_2 : '';
   document.getElementById('totF37Input').value = totalDia && totalDia.faixa_3_7 != null ? totalDia.faixa_3_7 : '';
   document.getElementById('totF830Input').value = totalDia && totalDia.faixa_8_30 != null ? totalDia.faixa_8_30 : '';
+  document.getElementById('totC15Input').value = totalDia && totalDia.acima_15_dias != null ? totalDia.acima_15_dias : '';
   document.getElementById('totC30Input').value = totalDia && totalDia.acima_30_dias != null ? totalDia.acima_30_dias : '';
 
   document.getElementById('gestaoLancFormWrap').classList.remove('hidden');
@@ -1797,6 +1858,7 @@ async function salvarLancamentoDia() {
       const payload = {
         obra_id: obraId, data: dateStr, participou,
         total_pendente: numOrNull(row.querySelector('.lancTotal').value),
+        acima_15_dias: numOrNull(row.querySelector('.lancC15').value),
         acima_30_dias: numOrNull(row.querySelector('.lancC30').value),
       };
       if (lancId) await sbUpdate('notas_lancamentos', 'id', lancId, payload);
@@ -1810,6 +1872,7 @@ async function salvarLancamentoDia() {
         faixa_0_2: numOrNull(document.getElementById('totF02Input').value),
         faixa_3_7: numOrNull(document.getElementById('totF37Input').value),
         faixa_8_30: numOrNull(document.getElementById('totF830Input').value),
+        acima_15_dias: numOrNull(document.getElementById('totC15Input').value),
         acima_30_dias: numOrNull(document.getElementById('totC30Input').value),
       });
     }
@@ -1887,16 +1950,24 @@ function populateSelects() {
 function bindEvents() {
   document.getElementById('obraSel').addEventListener('change', e => { state.obra = e.target.value; rerenderAll(); });
 
+  function setMetricaObraBtn(active) {
+    document.getElementById('metricaTotalBtn').dataset.active = String(active === 'total');
+    document.getElementById('metricaC15Btn').dataset.active = String(active === 'c15');
+    document.getElementById('metricaC30Btn').dataset.active = String(active === 'c30');
+  }
   document.getElementById('metricaTotalBtn').addEventListener('click', () => {
     state.metricaObra = 'total';
-    document.getElementById('metricaTotalBtn').dataset.active = 'true';
-    document.getElementById('metricaC30Btn').dataset.active = 'false';
+    setMetricaObraBtn('total');
+    renderObraMiniCharts();
+  });
+  document.getElementById('metricaC15Btn').addEventListener('click', () => {
+    state.metricaObra = 'c15';
+    setMetricaObraBtn('c15');
     renderObraMiniCharts();
   });
   document.getElementById('metricaC30Btn').addEventListener('click', () => {
     state.metricaObra = 'c30';
-    document.getElementById('metricaC30Btn').dataset.active = 'true';
-    document.getElementById('metricaTotalBtn').dataset.active = 'false';
+    setMetricaObraBtn('c30');
     renderObraMiniCharts();
   });
 
@@ -1923,8 +1994,7 @@ function bindEvents() {
     document.getElementById('obraSel').value = 'TODAS';
     document.getElementById('diaIni').value = state.diaIni;
     document.getElementById('diaFim').value = state.diaFim;
-    document.getElementById('metricaTotalBtn').dataset.active = 'true';
-    document.getElementById('metricaC30Btn').dataset.active = 'false';
+    setMetricaObraBtn('total');
     rerenderAll();
   });
 }
